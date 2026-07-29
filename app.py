@@ -30,6 +30,35 @@ from ai_advisory import get_ai_insight
 st.set_page_config(page_title="Agri Price Advisory", layout="wide", page_icon="🌾")
 
 # ---------------------------------------------------------------------------
+# MOBILE RESPONSIVENESS (Week 4 requirement)
+# ---------------------------------------------------------------------------
+# Streamlit's default layout squishes badly on phone-width screens — e.g.
+# the 3 side-by-side KPI cards become unreadable slivers. This CSS forces
+# columns to stack vertically and shrinks oversized text once the screen
+# drops below 640px wide (typical phone width in portrait mode).
+# data-testid selectors are used instead of Streamlit's internal class names
+# because those testid attributes are stable across Streamlit versions,
+# while class names change frequently between releases and would silently
+# stop working after an update.
+st.markdown("""
+<style>
+@media (max-width: 640px) {
+    [data-testid="stHorizontalBlock"] {
+        flex-direction: column !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 1.3rem !important;
+    }
+    .block-container {
+        padding: 1rem 0.8rem !important;
+    }
+    h1 { font-size: 1.5rem !important; }
+    h2, h3 { font-size: 1.15rem !important; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
 # 1. LOAD DATA
 # ---------------------------------------------------------------------------
 @st.cache_data
