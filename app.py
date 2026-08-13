@@ -26,6 +26,7 @@ from datetime import timedelta
 from io import BytesIO
 from fpdf import FPDF
 from ai_advisory import get_ai_insight
+from auth import create_user, authenticate, get_user_tier, set_user_tier, save_dashboard, get_saved_dashboards, delete_saved_dashboard
 
 st.set_page_config(page_title="Agri Price Advisory", layout="wide", page_icon="🌾")
 
@@ -57,6 +58,70 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# AUTH GATE (Week 5, Day 2): show login/signup until the user is authenticated,
+# then let the rest of the dashboard load. Everything above this point (page
+# config, mobile CSS) still applies to the login screen itself.
+# ---------------------------------------------------------------------------
+if "username" not in st.session_state:
+    st.session_state.username = None
+
+if st.session_state.username is None:
+    st.title("🌾 Agri Price Advisory — Login")
+
+    tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
+
+    with tab_login:
+        with st.form("login_form"):
+            login_user = st.text_input("Username")
+            login_pass = st.text_input("Password", type="password")
+            login_submitted = st.form_submit_button("Log in")
+
+            if login_submitted:
+                ok, msg = authenticate(login_user, login_pass)
+                if ok:
+                    st.session_state.username = login_user.strip()
+                    st.rerun()
+                else:
+                    st.error(msg)
+
+    with tab_signup:
+        with st.form("signup_form"):
+            signup_user = st.text_input("Choose a username")
+            signup_pass = st.text_input("Choose a password (min. 6 characters)", type="password")
+            signup_submitted = st.form_submit_button("Create account")
+
+            if signup_submitted:
+                ok, msg = create_user(signup_user, signup_pass)
+                if ok:
+                    st.success(f"{msg} You can now log in from the 'Log in' tab.")
+                else:
+                    st.error(msg)
+
+    # Stop here — nothing below this line runs until someone is logged in.
+    st.stop()
+
+# If we reach this point, the user IS logged in. Show who, and a logout button.
+user_tier = get_user_tier(st.session_state.username)
+is_premium = (user_tier == "premium")
+
+st.sidebar.success(f"Logged in as **{st.session_state.username}** ({user_tier} tier)")
+if st.sidebar.button("Log out"):
+    st.session_state.username = None
+    st.rerun()
+
+# UPGRADE BUTTON (Week 5, Day 4 — fake for MVP, no real payment processing yet
+# per the brief; this just demonstrates the tiering concept working end-to-end).
+if not is_premium:
+    if st.sidebar.button("⭐ Upgrade to Premium (demo)"):
+        set_user_tier(st.session_state.username, "premium")
+        st.sidebar.success("Upgraded! Reloading...")
+        st.rerun()
+else:
+    if st.sidebar.button("Downgrade to Free (demo)"):
+        set_user_tier(st.session_state.username, "free")
+        st.rerun()
 
 # ---------------------------------------------------------------------------
 # 1. LOAD DATA
@@ -219,26 +284,75 @@ df["price_pkr_per_40kg"] = pd.to_numeric(df["price_pkr_per_40kg"])
 # ---------------------------------------------------------------------------
 st.sidebar.title("🌾 Filters")
 
-crop = st.sidebar.selectbox("Crop", sorted(df["crop"].unique()))
-
-all_regions = sorted(df["region"].unique())
-regions = st.sidebar.multiselect("Region(s) / Mandi", all_regions, default=all_regions[:3])
-
 min_date, max_date = df["date"].min(), df["date"].max()
+all_regions = sorted(df["region"].unique())
+
+# FREEMIUM (Week 5, Day 4): free tier can only look back 30 days;
+# premium unlocks the full historical range.
+FREE_TIER_LOOKBACK_DAYS = 30
+if is_premium:
+    allowed_min_date = min_date.date()
+else:
+    allowed_min_date = max(min_date.date(), (max_date - timedelta(days=FREE_TIER_LOOKBACK_DAYS)).date())
+
+# Set first-run defaults in session_state BEFORE creating the widgets below.
+# Passing both `default=`/`value=` AND `key=` to a widget triggers a
+# Streamlit warning once session_state already holds a value for that key
+# (which happens as soon as the "Load saved dashboard" button runs) — so
+# instead we seed session_state directly and let the widgets read from it
+# via key= alone, with no default/value argument at all.
+if "crop_select" not in st.session_state:
+    st.session_state["crop_select"] = sorted(df["crop"].unique())[0]
+if "regions_select" not in st.session_state:
+    st.session_state["regions_select"] = all_regions[:3]
+if "start_date_input" not in st.session_state:
+    st.session_state["start_date_input"] = (max_date - timedelta(days=FREE_TIER_LOOKBACK_DAYS)).date()
+if "end_date_input" not in st.session_state:
+    st.session_state["end_date_input"] = max_date.date()
+
+# If a free-tier user previously had a wider range selected (e.g. was
+# downgraded from premium), clamp it now so the widget's value doesn't
+# fall outside its own min_value and crash.
+if not is_premium and st.session_state["start_date_input"] < allowed_min_date:
+    st.session_state["start_date_input"] = allowed_min_date
+
+# --- Load a saved dashboard (Week 5, Day 3 — Premium feature) ---
+if not is_premium:
+    st.sidebar.caption("📂 Saved dashboards are a Premium feature — upgrade to unlock.")
+else:
+    my_saved = get_saved_dashboards(st.session_state.username)
+    if my_saved:
+        with st.sidebar.expander("📂 Load a saved dashboard"):
+            pick = st.selectbox("Saved views", ["-- none --"] + list(my_saved.keys()))
+            col_load, col_del = st.columns(2)
+            if col_load.button("Load", disabled=(pick == "-- none --")):
+                saved = my_saved[pick]
+                st.session_state["crop_select"] = saved["crop"]
+                st.session_state["regions_select"] = saved["regions"]
+                st.session_state["start_date_input"] = pd.Timestamp(saved["start_date"]).date()
+                st.session_state["end_date_input"] = pd.Timestamp(saved["end_date"]).date()
+                st.rerun()
+            if col_del.button("Delete", disabled=(pick == "-- none --")):
+                delete_saved_dashboard(st.session_state.username, pick)
+                st.rerun()
+
+crop = st.sidebar.selectbox("Crop", sorted(df["crop"].unique()), key="crop_select")
+regions = st.sidebar.multiselect("Region(s) / Mandi", all_regions, key="regions_select")
 
 # UPGRADE: swapped the single slider for two separate date pickers.
 # With 15 years of real data, a single slider's drag handles become
 # extremely sensitive (a tiny mouse movement = months of date change),
 # making the "start" handle feel stuck. Two date_input boxes let you type
 # or pick an exact date instead, which is far more reliable.
+if not is_premium:
+    st.sidebar.caption(f"🔒 Free tier: limited to the last {FREE_TIER_LOOKBACK_DAYS} days. Upgrade for full history.")
+
 col_start, col_end = st.sidebar.columns(2)
 start_date = col_start.date_input(
-    "From", value=(max_date - timedelta(days=30)).date(),
-    min_value=min_date.date(), max_value=max_date.date(),
+    "From", min_value=allowed_min_date, max_value=max_date.date(), key="start_date_input",
 )
 end_date = col_end.date_input(
-    "To", value=max_date.date(),
-    min_value=min_date.date(), max_value=max_date.date(),
+    "To", min_value=allowed_min_date, max_value=max_date.date(), key="end_date_input",
 )
 
 if start_date > end_date:
@@ -246,6 +360,17 @@ if start_date > end_date:
     st.stop()
 
 date_range = (pd.Timestamp(start_date), pd.Timestamp(end_date))
+
+# --- Save the current view (Week 5, Day 3 — Premium feature) ---
+if is_premium:
+    with st.sidebar.expander("💾 Save current view"):
+        save_name = st.text_input("Name this view", placeholder="e.g. My Potato Watch")
+        if st.button("Save"):
+            if not save_name.strip():
+                st.error("Give it a name first.")
+            else:
+                ok, msg = save_dashboard(st.session_state.username, save_name.strip(), crop, regions, start_date, end_date)
+                st.success(msg) if ok else st.error(msg)
 
 if not regions:
     st.warning("Select at least one region from the sidebar.")
@@ -259,7 +384,10 @@ filtered = df[
 ].copy()
 
 st.title("Agri Market Price Trends & Sell Advisory")
-st.caption("MVP dashboard — now running on real combined mandi price data.")
+st.caption(
+    f"MVP dashboard — real mandi price data, {df['date'].min().date()} to {df['date'].max().date()}. "
+    "Not live/real-time pricing. Advisory is informational only, not financial advice."
+)
 
 # ---------------------------------------------------------------------------
 # 3. KPI CARDS (current price + 7/30-day change)
@@ -320,6 +448,8 @@ DISTINCT_COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
                     "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
 
 fig = go.Figure()
+flat_regions = []  # track regions whose price didn't move in this window, for a clear note
+
 for i, r in enumerate(regions):
     r_df = filtered[filtered["region"] == r].sort_values("date")
     color = DISTINCT_COLORS[i % len(DISTINCT_COLORS)]
@@ -332,16 +462,33 @@ for i, r in enumerate(regions):
         arrow = "▲" if pct >= 0 else "▼"
         label = f"{r} {arrow} {pct:+.1f}%"
 
+        # FIX: real data sometimes has a price that's genuinely flat for an
+        # entire window (e.g. the source stopped reporting real updates near
+        # the end of its collection period and just repeated the last known
+        # value). Plotly auto-scales the y-axis to a razor-thin range around
+        # a flat line, which makes the chart look broken/empty even though
+        # it's accurately showing "nothing changed." Detect this and flag it
+        # with a clear note instead of leaving it ambiguous.
+        if r_df["price_pkr_per_40kg"].std() < (r_df["price_pkr_per_40kg"].mean() * 0.0001):
+            flat_regions.append(r)
+
     fig.add_trace(go.Scatter(
         x=r_df["date"], y=r_df["price_pkr_per_40kg"],
         mode="lines", name=label, line=dict(color=color, width=2.5),
     ))
+
 fig.update_layout(
     yaxis_title="PKR per 40kg", xaxis_title="Date",
     hovermode="x unified", height=420,
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width='stretch')
 st.caption("Each city keeps its own color. The legend shows ▲/▼ and % change over the selected date range for quick comparison.")
+if flat_regions:
+    st.warning(
+        f"⚠️ Price for **{', '.join(flat_regions)}** shows no change across this entire date range in the data — "
+        "this is a real data characteristic (the source may not have updated for this period), not a display error. "
+        "Try a wider date range or a different crop/region to see more variation."
+    )
 
 # ---------------------------------------------------------------------------
 # 5. MANDI COMPARISON (bar chart, current prices across all regions)
@@ -356,7 +503,7 @@ latest_by_region = (
 )
 fig2 = go.Figure(go.Bar(x=latest_by_region["region"], y=latest_by_region["price_pkr_per_40kg"]))
 fig2.update_layout(yaxis_title="PKR per 40kg", height=350)
-st.plotly_chart(fig2, use_container_width=True)
+st.plotly_chart(fig2, width='stretch')
 
 # ---------------------------------------------------------------------------
 # 6. SIMPLE FORECAST: 7-day moving average projected forward
@@ -413,7 +560,7 @@ else:
     ))
 
     fig3.update_layout(yaxis_title="PKR per 40kg", height=400)
-    st.plotly_chart(fig3, use_container_width=True)
+    st.plotly_chart(fig3, width='stretch')
     st.caption("Two forecasting methods shown for comparison. The shaded band is a rough confidence range (not a statistical guarantee) — wider further out, since near-term forecasts are more reliable than longer-term ones.")
 
 # ---------------------------------------------------------------------------
@@ -434,25 +581,29 @@ st.markdown(f"**Advisory for {crop} in {primary_region}:** :{color}[{advice}]")
 st.caption("Rule-based (trend + slope) advisory. This is advisory only, not financial advice.")
 
 # ---------------------------------------------------------------------------
-# 7b. AI-GENERATED NATURAL LANGUAGE INSIGHT (Week 3: Gemini layer)
+# 7b. AI-GENERATED NATURAL LANGUAGE INSIGHT (Week 3: Gemini layer — Premium feature)
 # ---------------------------------------------------------------------------
 st.markdown("**AI insight** (experimental)")
 
-gemini_key = st.sidebar.text_input(
-    "Gemini API key (optional, for AI insights)", type="password",
-    help="Get a free key at https://aistudio.google.com — leave blank to skip AI insights.",
-)
-
-ai_insight = get_ai_insight(crop, primary_region, latest_price, chg_7d, chg_30d, api_key=gemini_key)
-
-if ai_insight:
-    st.info(f"🤖 {ai_insight}")
+ai_insight = None
+if not is_premium:
+    st.caption("🔒 AI insights are a Premium feature. Click '⭐ Upgrade to Premium' in the sidebar to unlock.")
 else:
-    st.caption(
-        "No AI insight available — paste a Gemini API key in the sidebar to enable this "
-        "(get a free one at aistudio.google.com), or the call may have failed. "
-        "The rule-based advisory above still works either way."
+    gemini_key = st.sidebar.text_input(
+        "Gemini API key (optional, for AI insights)", type="password",
+        help="Get a free key at https://aistudio.google.com — leave blank to skip AI insights.",
     )
+
+    ai_insight = get_ai_insight(crop, primary_region, latest_price, chg_7d, chg_30d, api_key=gemini_key)
+
+    if ai_insight:
+        st.info(f"🤖 {ai_insight}")
+    else:
+        st.caption(
+            "No AI insight available — paste a Gemini API key in the sidebar to enable this "
+            "(get a free one at aistudio.google.com), or the call may have failed. "
+            "The rule-based advisory above still works either way."
+        )
 
 # ---------------------------------------------------------------------------
 # 8. MOCK NEWS / ALERTS FEED
@@ -467,7 +618,7 @@ for n in mock_news:
     st.write("-", n)
 
 # ---------------------------------------------------------------------------
-# 9. EXPORT
+# 9. EXPORT (CSV = free tier, PDF report = Premium)
 # ---------------------------------------------------------------------------
 st.subheader("Export data")
 
@@ -476,13 +627,16 @@ col_csv, col_pdf = st.columns(2)
 csv = filtered.to_csv(index=False).encode("utf-8")
 col_csv.download_button("📄 Download filtered data as CSV", csv, file_name=f"{crop}_prices.csv", mime="text/csv")
 
-# UPGRADE (Week 3 "polish... export"): one-click PDF summary report — crop,
-# region, current stats, advisory, and AI insight, for records/printing.
-pdf_bytes = build_pdf_report(
-    crop=crop, region=primary_region, latest_price=latest_price,
-    chg_7d=chg_7d, chg_30d=chg_30d, advice=advice, ai_insight=ai_insight,
-)
-col_pdf.download_button(
-    "📑 Download PDF summary report", pdf_bytes,
-    file_name=f"{crop}_{primary_region}_report.pdf", mime="application/pdf",
-)
+if is_premium:
+    # UPGRADE (Week 3 "polish... export"): one-click PDF summary report — crop,
+    # region, current stats, advisory, and AI insight, for records/printing.
+    pdf_bytes = build_pdf_report(
+        crop=crop, region=primary_region, latest_price=latest_price,
+        chg_7d=chg_7d, chg_30d=chg_30d, advice=advice, ai_insight=ai_insight,
+    )
+    col_pdf.download_button(
+        "📑 Download PDF summary report", pdf_bytes,
+        file_name=f"{crop}_{primary_region}_report.pdf", mime="application/pdf",
+    )
+else:
+    col_pdf.caption("🔒 PDF reports are a Premium feature. Upgrade in the sidebar to unlock.")
