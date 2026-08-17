@@ -62,18 +62,39 @@ Rules:
 """
 
 
-def get_ai_insight(crop, region, current_price, chg_7d, chg_30d, api_key=None, timeout=10):
-    """
-    Calls the Gemini API and returns a one-sentence insight string.
-    Returns None if it fails for any reason (no key, network error, bad
-    response, etc.) — the caller (app.py) should fall back to the
-    rule-based advisory when this returns None, rather than crashing.
-    """
-    api_key = api_key or os.environ.get("GEMINI_API_KEY")
-    if not api_key:
+def resolve_api_key(api_key=None):
+    """Finds a Gemini API key from (in order): the argument passed in, the
+    GEMINI_API_KEY environment variable (local `setx` setup), or Streamlit
+    Cloud's Secrets manager. Returns None if no key is found anywhere."""
+    if api_key:
+        return api_key
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if api_key:
+        return api_key
+    # Fallback for Streamlit Cloud deployment: a local `setx` environment
+    # variable only exists on YOUR machine, not on the cloud server. On
+    # Streamlit Cloud, secrets are set via the app's "Secrets" settings
+    # panel instead, and read through st.secrets. Importing streamlit here
+    # (rather than at the top of the file) keeps this module usable
+    # standalone (`python ai_advisory.py`) even without streamlit running.
+    try:
+        import streamlit as st
+        return st.secrets.get("GEMINI_API_KEY")
+    except Exception:
         return None
 
-    prompt = build_prompt(crop, region, current_price, chg_7d, chg_30d)
+
+def call_gemini_raw(prompt, api_key=None, timeout=10):
+    """
+    Generic Gemini call: sends any prompt, returns the raw text response.
+    Used both by get_ai_insight (price insights) and farmer_assistant.py
+    (translation) — one shared, tested code path for talking to Gemini,
+    rather than two separate implementations that could drift apart.
+    Returns None on any failure (no key, network error, bad response).
+    """
+    api_key = resolve_api_key(api_key)
+    if not api_key:
+        return None
 
     try:
         response = requests.post(
@@ -88,6 +109,17 @@ def get_ai_insight(crop, region, current_price, chg_7d, chg_30d, api_key=None, t
     except Exception as e:
         print(f"[ai_advisory] Gemini call failed: {e}")
         return None
+
+
+def get_ai_insight(crop, region, current_price, chg_7d, chg_30d, api_key=None, timeout=10):
+    """
+    Calls the Gemini API and returns a one-sentence insight string.
+    Returns None if it fails for any reason (no key, network error, bad
+    response, etc.) — the caller (app.py) should fall back to the
+    rule-based advisory when this returns None, rather than crashing.
+    """
+    prompt = build_prompt(crop, region, current_price, chg_7d, chg_30d)
+    return call_gemini_raw(prompt, api_key=api_key, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------
