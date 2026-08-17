@@ -1,58 +1,41 @@
 """
 app.py
 ------
-Agri Market Price Trends, Forecasting & Sell Advisory Dashboard (MVP - Week 1-2)
+Agri Market Price Trends, Forecasting & Sell Advisory Dashboard.
 
-Covers the MVP must-haves:
-  1. Filters: crop, region/mandi, date range
-  2. Current price + 7/30-day trend charts (interactive, Plotly)
-  3. Simple forecasting: moving-average + linear regression projection
-  4. Rule-based sell advisory (placeholder for the Gemini layer later)
-  5. Cross-mandi comparison
-  6. Mock news/alerts feed
-  7. CSV export
-  8. Data ingestion: CSV upload + manual entry (Week 2)
+This file is now the orchestrator only: page config, mobile CSS, language
+toggle, auth gate, and shared data loading. The actual page content lives
+in separate files (dashboard_page.py, ask_page.py, account_page.py),
+switched between using Streamlit's built-in multi-page navigation
+(st.navigation) — this replaces the old single giant script, which had
+become cluttered as more features were added.
 
 Run with:  streamlit run app.py
 (Make sure real_mandi_prices.csv exists — run combine_real_data.py first,
-or generate_mock_data.py if you want to fall back to mock data.)
+or set DATA_URL for auto-download on deployment — see DEPLOYMENT_GUIDE.md)
 """
 
+import os
+import requests
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-from datetime import timedelta
-from io import BytesIO
-from fpdf import FPDF
-from ai_advisory import get_ai_insight
-from auth import create_user, authenticate, get_user_tier, set_user_tier, save_dashboard, get_saved_dashboards, delete_saved_dashboard
+from auth import create_user, authenticate, get_user_tier, set_user_tier
+from translations import t
+import dashboard_page
+import ask_page
+import account_page
 
 st.set_page_config(page_title="Agri Price Advisory", layout="wide", page_icon="🌾")
 
 # ---------------------------------------------------------------------------
 # MOBILE RESPONSIVENESS (Week 4 requirement)
 # ---------------------------------------------------------------------------
-# Streamlit's default layout squishes badly on phone-width screens — e.g.
-# the 3 side-by-side KPI cards become unreadable slivers. This CSS forces
-# columns to stack vertically and shrinks oversized text once the screen
-# drops below 640px wide (typical phone width in portrait mode).
-# data-testid selectors are used instead of Streamlit's internal class names
-# because those testid attributes are stable across Streamlit versions,
-# while class names change frequently between releases and would silently
-# stop working after an update.
 st.markdown("""
 <style>
 @media (max-width: 640px) {
-    [data-testid="stHorizontalBlock"] {
-        flex-direction: column !important;
-    }
-    [data-testid="stMetricValue"] {
-        font-size: 1.3rem !important;
-    }
-    .block-container {
-        padding: 1rem 0.8rem !important;
-    }
+    [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
+    [data-testid="stMetricValue"] { font-size: 1.3rem !important; }
+    .block-container { padding: 1rem 0.8rem !important; }
     h1 { font-size: 1.5rem !important; }
     h2, h3 { font-size: 1.15rem !important; }
 }
@@ -60,24 +43,48 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# AUTH GATE (Week 5, Day 2): show login/signup until the user is authenticated,
-# then let the rest of the dashboard load. Everything above this point (page
-# config, mobile CSS) still applies to the login screen itself.
+# LANGUAGE TOGGLE (English / Urdu)
+# ---------------------------------------------------------------------------
+# Set BEFORE the auth gate so a farmer can switch to Urdu before even
+# logging in — the login screen itself should be readable in either
+# language, not just the dashboard after login.
+if "lang" not in st.session_state:
+    st.session_state.lang = "en"
+
+lang_choice = st.sidebar.radio(
+    t("language_label"), options=["en", "ur"],
+    format_func=lambda x: "English" if x == "en" else "اردو",
+    horizontal=True,
+    index=0 if st.session_state.lang == "en" else 1,
+    key="lang_radio",
+)
+st.session_state.lang = lang_choice
+
+# Urdu is a right-to-left script — flip text alignment when Urdu is active
+# so it reads naturally instead of left-aligned Urdu text (which looks wrong).
+if st.session_state.lang == "ur":
+    st.markdown("""
+    <style>
+    .stMarkdown, .stText, p, h1, h2, h3, .stCaption { direction: rtl; text-align: right; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# AUTH GATE
 # ---------------------------------------------------------------------------
 if "username" not in st.session_state:
     st.session_state.username = None
 
 if st.session_state.username is None:
-    st.title("🌾 Agri Price Advisory — Login")
+    st.title(t("login_title"))
 
-    tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
+    tab_login, tab_signup = st.tabs([t("login_tab"), t("signup_tab")])
 
     with tab_login:
         with st.form("login_form"):
-            login_user = st.text_input("Username")
-            login_pass = st.text_input("Password", type="password")
-            login_submitted = st.form_submit_button("Log in")
-
+            login_user = st.text_input(t("username"))
+            login_pass = st.text_input(t("password"), type="password")
+            login_submitted = st.form_submit_button(t("login_button"))
             if login_submitted:
                 ok, msg = authenticate(login_user, login_pass)
                 if ok:
@@ -88,555 +95,95 @@ if st.session_state.username is None:
 
     with tab_signup:
         with st.form("signup_form"):
-            signup_user = st.text_input("Choose a username")
-            signup_pass = st.text_input("Choose a password (min. 6 characters)", type="password")
-            signup_submitted = st.form_submit_button("Create account")
-
+            signup_user = st.text_input(t("username"))
+            signup_pass = st.text_input(t("password") + " (min. 6 characters)", type="password")
+            signup_submitted = st.form_submit_button(t("signup_button"))
             if signup_submitted:
                 ok, msg = create_user(signup_user, signup_pass)
                 if ok:
-                    st.success(f"{msg} You can now log in from the 'Log in' tab.")
+                    st.success(f"{msg}")
                 else:
                     st.error(msg)
 
-    # Stop here — nothing below this line runs until someone is logged in.
     st.stop()
 
-# If we reach this point, the user IS logged in. Show who, and a logout button.
+# ---------------------------------------------------------------------------
+# LOGGED IN: sidebar status + tier controls (shown on every page)
+# ---------------------------------------------------------------------------
 user_tier = get_user_tier(st.session_state.username)
 is_premium = (user_tier == "premium")
 
-st.sidebar.success(f"Logged in as **{st.session_state.username}** ({user_tier} tier)")
-if st.sidebar.button("Log out"):
+st.sidebar.success(f"{t('logged_in_as')} **{st.session_state.username}** ({t('tier_premium') if is_premium else t('tier_free')})")
+if st.sidebar.button(t("logout")):
     st.session_state.username = None
     st.rerun()
 
-# UPGRADE BUTTON (Week 5, Day 4 — fake for MVP, no real payment processing yet
-# per the brief; this just demonstrates the tiering concept working end-to-end).
 if not is_premium:
-    if st.sidebar.button("⭐ Upgrade to Premium (demo)"):
+    if st.sidebar.button(t("upgrade")):
         set_user_tier(st.session_state.username, "premium")
-        st.sidebar.success("Upgraded! Reloading...")
         st.rerun()
 else:
-    if st.sidebar.button("Downgrade to Free (demo)"):
+    if st.sidebar.button(t("downgrade")):
         set_user_tier(st.session_state.username, "free")
         st.rerun()
 
 # ---------------------------------------------------------------------------
-# 1. LOAD DATA
+# SHARED DATA LOADING (used by all pages)
 # ---------------------------------------------------------------------------
+DATA_FILE = "real_mandi_prices.csv"
+
+
+def ensure_data_file():
+    if os.path.exists(DATA_FILE):
+        return
+    data_url = None
+    try:
+        data_url = st.secrets.get("DATA_URL")
+    except Exception:
+        pass
+    data_url = data_url or os.environ.get("DATA_URL")
+    if not data_url:
+        st.error(f"'{DATA_FILE}' not found and no DATA_URL is configured. See DEPLOYMENT_GUIDE.md.")
+        st.stop()
+    with st.spinner("Downloading price dataset (first run only)..."):
+        response = requests.get(data_url, timeout=60)
+        response.raise_for_status()
+        with open(DATA_FILE, "wb") as f:
+            f.write(response.content)
+
+
+ensure_data_file()
+
+
 @st.cache_data
 def load_data():
-    # Using the real combined dataset (from combine_real_data.py) instead of
-    # the mock data now. The real file uses different column names
-    # (City, Date, Crop, Price) — rename them here so nothing else in the
-    # app below needs to change.
-    df = pd.read_csv("real_mandi_prices.csv", parse_dates=["Date"])
-    df = df.rename(columns={
-        "City": "region",
-        "Date": "date",
-        "Crop": "crop",
-        "Price": "price_pkr_per_40kg",
-    })
-    return df
+    df = pd.read_csv(DATA_FILE, parse_dates=["Date"])
+    return df.rename(columns={"City": "region", "Date": "date", "Crop": "crop", "Price": "price_pkr_per_40kg"})
+
 
 df_base = load_data()
 
 # ---------------------------------------------------------------------------
-# 1a. PDF REPORT BUILDER (Week 3 "polish... export" requirement)
+# NAVIGATION (Week 6 polish: split single cluttered page into three)
 # ---------------------------------------------------------------------------
-def build_pdf_report(crop, region, latest_price, chg_7d, chg_30d, advice, ai_insight):
-    """Builds a simple one-page PDF summary and returns it as bytes, ready
-    for st.download_button. Kept plain (no charts embedded) to stay fast
-    and dependency-light for the MVP — a good Week 6 polish item would be
-    embedding the actual chart image too."""
-    from fpdf.enums import XPos, YPos
+# NOTE: st.Page infers each page's URL from the function's name — using
+# lambdas here would give every page the same name ("<lambda>"), causing a
+# "URL pathnames must be unique" crash. Named wrapper functions avoid that.
+def _render_dashboard():
+    dashboard_page.render(df_base, is_premium, st.session_state.username)
 
-    def safe_text(s):
-        """fpdf2's built-in fonts only support latin-1. AI-generated text
-        can contain smart quotes/em-dashes that would crash the PDF build,
-        so replace anything unsupported instead of failing."""
-        return s.encode("latin-1", errors="replace").decode("latin-1")
 
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "Agri Market Price Report", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 8, f"Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.ln(5)
+def _render_ask():
+    ask_page.render(df_base)
 
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.cell(0, 8, f"{crop} - {region}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 8, f"Current price: PKR {latest_price:,.0f} per 40kg", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.cell(0, 8, f"7-day change: {f'{chg_7d:+.1f}%' if chg_7d is not None else 'N/A'}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.cell(0, 8, f"30-day change: {f'{chg_30d:+.1f}%' if chg_30d is not None else 'N/A'}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.ln(3)
 
-    pdf.set_font("Helvetica", "B", 11)
-    pdf.cell(0, 8, "Sell advisory:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.set_font("Helvetica", "", 11)
-    pdf.multi_cell(0, 7, safe_text(advice))
-    pdf.ln(2)
+def _render_account():
+    account_page.render(st.session_state.username, is_premium)
 
-    if ai_insight:
-        pdf.set_font("Helvetica", "B", 11)
-        pdf.cell(0, 8, "AI insight:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        pdf.set_font("Helvetica", "", 11)
-        pdf.multi_cell(0, 7, safe_text(ai_insight))
 
-    pdf.ln(5)
-    pdf.set_font("Helvetica", "I", 8)
-    pdf.multi_cell(0, 5, "This is an MVP demo report. Data may be illustrative. Advisory is not financial advice.")
+page_dashboard = st.Page(_render_dashboard, title=t("nav_dashboard"), icon="📊")
+page_ask = st.Page(_render_ask, title=t("nav_ask"), icon="💬")
+page_account = st.Page(_render_account, title=t("nav_account"), icon="⚙️")
 
-    return bytes(pdf.output())
-
-# ---------------------------------------------------------------------------
-# 1b. DATA INGESTION (Week 2 requirement: upload CSV or manual entry)
-# ---------------------------------------------------------------------------
-# Newly added rows live in session_state so they persist while you use the
-# app (across filter changes / reruns) without touching the underlying
-# real_mandi_prices.csv file until you explicitly choose to save them.
-if "extra_data" not in st.session_state:
-    st.session_state.extra_data = pd.DataFrame(
-        columns=["region", "date", "crop", "price_pkr_per_40kg"]
-    )
-
-with st.sidebar.expander("➕ Add data (upload or manual entry)"):
-    tab_upload, tab_manual = st.tabs(["Upload CSV", "Manual entry"])
-
-    # --- Upload CSV ---
-    with tab_upload:
-        st.caption("CSV must have columns: City, Date, Crop, Price (same format as the real dataset).")
-        uploaded_file = st.file_uploader("Choose a CSV file", type="csv", key="csv_uploader")
-        if uploaded_file is not None:
-            try:
-                new_df = pd.read_csv(uploaded_file)
-                required_cols = {"City", "Date", "Crop", "Price"}
-                if not required_cols.issubset(set(new_df.columns)):
-                    st.error(f"Missing required columns. Found: {list(new_df.columns)}. Need: {sorted(required_cols)}")
-                else:
-                    new_df = new_df.rename(columns={
-                        "City": "region", "Date": "date", "Crop": "crop", "Price": "price_pkr_per_40kg",
-                    })
-                    new_df["date"] = pd.to_datetime(new_df["date"], errors="coerce")
-                    new_df = new_df.dropna(subset=["region", "date", "crop", "price_pkr_per_40kg"])
-                    new_df = new_df[new_df["price_pkr_per_40kg"] > 0]
-
-                    if st.button(f"Add {len(new_df)} rows to dashboard", key="confirm_upload"):
-                        st.session_state.extra_data = pd.concat(
-                            [st.session_state.extra_data, new_df], ignore_index=True
-                        )
-                        st.success(f"Added {len(new_df)} rows. Filters below now include this data.")
-            except Exception as e:
-                st.error(f"Couldn't read that file: {e}")
-
-    # --- Manual entry ---
-    with tab_manual:
-        with st.form("manual_entry_form", clear_on_submit=True):
-            m_crop = st.text_input("Crop name", placeholder="e.g. Wheat")
-            m_region = st.text_input("City / mandi", placeholder="e.g. Lahore")
-            m_date = st.date_input("Date", value=df_base["date"].max().date())
-            m_price = st.number_input("Price (PKR per 40kg)", min_value=0.0, step=10.0)
-            submitted = st.form_submit_button("Add entry")
-
-            if submitted:
-                if not m_crop or not m_region or m_price <= 0:
-                    st.error("Please fill in crop, city, and a price greater than 0.")
-                else:
-                    new_row = pd.DataFrame([{
-                        "region": m_region.strip(), "date": pd.Timestamp(m_date),
-                        "crop": m_crop.strip(), "price_pkr_per_40kg": m_price,
-                    }])
-                    st.session_state.extra_data = pd.concat(
-                        [st.session_state.extra_data, new_row], ignore_index=True
-                    )
-                    st.success(f"Added: {m_crop} in {m_region} on {m_date} — PKR {m_price:,.0f}")
-
-    if len(st.session_state.extra_data) > 0:
-        st.caption(f"📌 {len(st.session_state.extra_data)} row(s) added this session (not yet saved to file).")
-        if st.button("💾 Save all added data to real_mandi_prices.csv"):
-            combined = pd.concat([df_base, st.session_state.extra_data], ignore_index=True)
-            combined = combined.rename(columns={
-                "region": "City", "date": "Date", "crop": "Crop", "price_pkr_per_40kg": "Price",
-            })
-            combined.to_csv("real_mandi_prices.csv", index=False)
-            st.success("Saved! Restart the app to reload from the updated file.")
-        if st.button("🗑️ Clear added data (this session only)"):
-            st.session_state.extra_data = pd.DataFrame(columns=["region", "date", "crop", "price_pkr_per_40kg"])
-            st.rerun()
-
-# Merge base data with anything added this session — everything below (filters,
-# charts, forecast, advisory) automatically sees the combined dataset.
-df = pd.concat([df_base, st.session_state.extra_data], ignore_index=True)
-
-# IMPORTANT: pd.concat silently converts date/price to generic "object" dtype
-# when merging with an empty (or freshly-typed) session_state frame. That
-# breaks date comparisons, sorting, and the forecast math further down —
-# so force the correct types back explicitly right after merging.
-df["date"] = pd.to_datetime(df["date"])
-df["price_pkr_per_40kg"] = pd.to_numeric(df["price_pkr_per_40kg"])
-
-# ---------------------------------------------------------------------------
-# 2. SIDEBAR FILTERS
-# ---------------------------------------------------------------------------
-st.sidebar.title("🌾 Filters")
-
-min_date, max_date = df["date"].min(), df["date"].max()
-all_regions = sorted(df["region"].unique())
-
-# FREEMIUM (Week 5, Day 4): free tier can only look back 30 days;
-# premium unlocks the full historical range.
-FREE_TIER_LOOKBACK_DAYS = 30
-if is_premium:
-    allowed_min_date = min_date.date()
-else:
-    allowed_min_date = max(min_date.date(), (max_date - timedelta(days=FREE_TIER_LOOKBACK_DAYS)).date())
-
-# Set first-run defaults in session_state BEFORE creating the widgets below.
-# Passing both `default=`/`value=` AND `key=` to a widget triggers a
-# Streamlit warning once session_state already holds a value for that key
-# (which happens as soon as the "Load saved dashboard" button runs) — so
-# instead we seed session_state directly and let the widgets read from it
-# via key= alone, with no default/value argument at all.
-if "crop_select" not in st.session_state:
-    st.session_state["crop_select"] = sorted(df["crop"].unique())[0]
-if "regions_select" not in st.session_state:
-    st.session_state["regions_select"] = all_regions[:3]
-if "start_date_input" not in st.session_state:
-    st.session_state["start_date_input"] = (max_date - timedelta(days=FREE_TIER_LOOKBACK_DAYS)).date()
-if "end_date_input" not in st.session_state:
-    st.session_state["end_date_input"] = max_date.date()
-
-# If a free-tier user previously had a wider range selected (e.g. was
-# downgraded from premium), clamp it now so the widget's value doesn't
-# fall outside its own min_value and crash.
-if not is_premium and st.session_state["start_date_input"] < allowed_min_date:
-    st.session_state["start_date_input"] = allowed_min_date
-
-# --- Load a saved dashboard (Week 5, Day 3 — Premium feature) ---
-if not is_premium:
-    st.sidebar.caption("📂 Saved dashboards are a Premium feature — upgrade to unlock.")
-else:
-    my_saved = get_saved_dashboards(st.session_state.username)
-    if my_saved:
-        with st.sidebar.expander("📂 Load a saved dashboard"):
-            pick = st.selectbox("Saved views", ["-- none --"] + list(my_saved.keys()))
-            col_load, col_del = st.columns(2)
-            if col_load.button("Load", disabled=(pick == "-- none --")):
-                saved = my_saved[pick]
-                st.session_state["crop_select"] = saved["crop"]
-                st.session_state["regions_select"] = saved["regions"]
-                st.session_state["start_date_input"] = pd.Timestamp(saved["start_date"]).date()
-                st.session_state["end_date_input"] = pd.Timestamp(saved["end_date"]).date()
-                st.rerun()
-            if col_del.button("Delete", disabled=(pick == "-- none --")):
-                delete_saved_dashboard(st.session_state.username, pick)
-                st.rerun()
-
-crop = st.sidebar.selectbox("Crop", sorted(df["crop"].unique()), key="crop_select")
-regions = st.sidebar.multiselect("Region(s) / Mandi", all_regions, key="regions_select")
-
-# UPGRADE: swapped the single slider for two separate date pickers.
-# With 15 years of real data, a single slider's drag handles become
-# extremely sensitive (a tiny mouse movement = months of date change),
-# making the "start" handle feel stuck. Two date_input boxes let you type
-# or pick an exact date instead, which is far more reliable.
-if not is_premium:
-    st.sidebar.caption(f"🔒 Free tier: limited to the last {FREE_TIER_LOOKBACK_DAYS} days. Upgrade for full history.")
-
-col_start, col_end = st.sidebar.columns(2)
-start_date = col_start.date_input(
-    "From", min_value=allowed_min_date, max_value=max_date.date(), key="start_date_input",
-)
-end_date = col_end.date_input(
-    "To", min_value=allowed_min_date, max_value=max_date.date(), key="end_date_input",
-)
-
-if start_date > end_date:
-    st.sidebar.error("'From' date must be before 'To' date.")
-    st.stop()
-
-date_range = (pd.Timestamp(start_date), pd.Timestamp(end_date))
-
-# --- Save the current view (Week 5, Day 3 — Premium feature) ---
-if is_premium:
-    with st.sidebar.expander("💾 Save current view"):
-        save_name = st.text_input("Name this view", placeholder="e.g. My Potato Watch")
-        if st.button("Save"):
-            if not save_name.strip():
-                st.error("Give it a name first.")
-            else:
-                ok, msg = save_dashboard(st.session_state.username, save_name.strip(), crop, regions, start_date, end_date)
-                st.success(msg) if ok else st.error(msg)
-
-if not regions:
-    st.warning("Select at least one region from the sidebar.")
-    st.stop()
-
-filtered = df[
-    (df["crop"] == crop)
-    & (df["region"].isin(regions))
-    & (df["date"] >= date_range[0])
-    & (df["date"] <= date_range[1])
-].copy()
-
-st.title("Agri Market Price Trends & Sell Advisory")
-st.caption(
-    f"MVP dashboard — real mandi price data, {df['date'].min().date()} to {df['date'].max().date()}. "
-    "Not live/real-time pricing. Advisory is informational only, not financial advice."
-)
-
-# ---------------------------------------------------------------------------
-# 3. KPI CARDS (current price + 7/30-day change)
-# ---------------------------------------------------------------------------
-# Real data has gaps: not every crop was reported in every region on every
-# date. So instead of blindly using the first selected region, we pick the
-# first one that actually HAS data for this crop — and warn instead of
-# crashing if none of the selected regions have any data at all.
-valid_regions = [r for r in regions if ((df["crop"] == crop) & (df["region"] == r)).any()]
-
-if not valid_regions:
-    st.warning(
-        f"No price data found for **{crop}** in any of the selected regions. "
-        "Try picking a different region or crop from the sidebar."
-    )
-    st.stop()
-
-primary_region = valid_regions[0]
-region_df = df[(df["crop"] == crop) & (df["region"] == primary_region)].sort_values("date")
-
-latest_price = region_df["price_pkr_per_40kg"].iloc[-1]
-latest_date = region_df["date"].iloc[-1]  # use THIS region/crop's own latest date,
-                                            # not the global max_date, since real data
-                                            # doesn't all end on the same day
-
-def price_n_days_before(n_days):
-    """Returns the most recent price at or before (latest_date - n_days),
-    or None if there's no data that far back — avoids IndexError crashes
-    on short/gappy histories."""
-    subset = region_df[region_df["date"] <= latest_date - timedelta(days=n_days)]
-    if subset.empty:
-        return None
-    return subset["price_pkr_per_40kg"].iloc[-1]
-
-price_7d_ago = price_n_days_before(7)
-price_30d_ago = price_n_days_before(30)
-
-chg_7d = (latest_price - price_7d_ago) / price_7d_ago * 100 if price_7d_ago else None
-chg_30d = (latest_price - price_30d_ago) / price_30d_ago * 100 if price_30d_ago else None
-
-col1, col2, col3 = st.columns(3)
-col1.metric(f"Current price ({primary_region})", f"PKR {latest_price:,.0f}/40kg")
-col2.metric("7-day change", f"{chg_7d:+.1f}%" if chg_7d is not None else "N/A (not enough history)")
-col3.metric("30-day change", f"{chg_30d:+.1f}%" if chg_30d is not None else "N/A (not enough history)")
-
-# ---------------------------------------------------------------------------
-# 4. TREND CHART (line, multi-region, distinct colors per region + direction in legend)
-# ---------------------------------------------------------------------------
-st.subheader(f"{crop} price trend")
-
-# FIX: the earlier version colored every line green/red by direction, but
-# that meant all "rising" cities looked identical and all "falling" cities
-# looked identical — you couldn't tell WHICH city was which anymore.
-# Now: each region keeps its own distinct color (so you can always match a
-# line to its legend entry), and direction is shown instead as an
-# up/down arrow + % change appended to the legend label itself.
-DISTINCT_COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-                    "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
-
-fig = go.Figure()
-flat_regions = []  # track regions whose price didn't move in this window, for a clear note
-
-for i, r in enumerate(regions):
-    r_df = filtered[filtered["region"] == r].sort_values("date")
-    color = DISTINCT_COLORS[i % len(DISTINCT_COLORS)]
-
-    if len(r_df) < 2:
-        label = f"{r} (not enough data)"
-    else:
-        start_p, end_p = r_df["price_pkr_per_40kg"].iloc[0], r_df["price_pkr_per_40kg"].iloc[-1]
-        pct = (end_p - start_p) / start_p * 100
-        arrow = "▲" if pct >= 0 else "▼"
-        label = f"{r} {arrow} {pct:+.1f}%"
-
-        # FIX: real data sometimes has a price that's genuinely flat for an
-        # entire window (e.g. the source stopped reporting real updates near
-        # the end of its collection period and just repeated the last known
-        # value). Plotly auto-scales the y-axis to a razor-thin range around
-        # a flat line, which makes the chart look broken/empty even though
-        # it's accurately showing "nothing changed." Detect this and flag it
-        # with a clear note instead of leaving it ambiguous.
-        if r_df["price_pkr_per_40kg"].std() < (r_df["price_pkr_per_40kg"].mean() * 0.0001):
-            flat_regions.append(r)
-
-    fig.add_trace(go.Scatter(
-        x=r_df["date"], y=r_df["price_pkr_per_40kg"],
-        mode="lines", name=label, line=dict(color=color, width=2.5),
-    ))
-
-fig.update_layout(
-    yaxis_title="PKR per 40kg", xaxis_title="Date",
-    hovermode="x unified", height=420,
-)
-st.plotly_chart(fig, width='stretch')
-st.caption("Each city keeps its own color. The legend shows ▲/▼ and % change over the selected date range for quick comparison.")
-if flat_regions:
-    st.warning(
-        f"⚠️ Price for **{', '.join(flat_regions)}** shows no change across this entire date range in the data — "
-        "this is a real data characteristic (the source may not have updated for this period), not a display error. "
-        "Try a wider date range or a different crop/region to see more variation."
-    )
-
-# ---------------------------------------------------------------------------
-# 5. MANDI COMPARISON (bar chart, current prices across all regions)
-# ---------------------------------------------------------------------------
-st.subheader(f"Current {crop} price by mandi")
-latest_by_region = (
-    df[df["crop"] == crop]
-    .sort_values("date")
-    .groupby("region")
-    .tail(1)
-    .sort_values("price_pkr_per_40kg")
-)
-fig2 = go.Figure(go.Bar(x=latest_by_region["region"], y=latest_by_region["price_pkr_per_40kg"]))
-fig2.update_layout(yaxis_title="PKR per 40kg", height=350)
-st.plotly_chart(fig2, width='stretch')
-
-# ---------------------------------------------------------------------------
-# 6. SIMPLE FORECAST: 7-day moving average projected forward
-# ---------------------------------------------------------------------------
-st.subheader("Simple forecast (7-day moving average)")
-
-hist = region_df.tail(30).copy()
-hist["ma7"] = hist["price_pkr_per_40kg"].rolling(7).mean()
-
-# naive projection: extend the most recent MA slope forward 7 days
-recent_slope = (hist["ma7"].iloc[-1] - hist["ma7"].iloc[-8]) / 7 if len(hist) >= 8 else 0
-future_dates = [hist["date"].iloc[-1] + timedelta(days=i) for i in range(1, 8)]
-future_prices = [hist["ma7"].iloc[-1] + recent_slope * i for i in range(1, 8)]
-
-# UPGRADE: a second forecasting method — simple linear regression on the
-# last 14 days — plotted alongside the moving-average projection. Having two
-# methods agree (or disagree) is itself useful signal, and it looks more
-# rigorous than a single naive line.
-lr_window = hist.tail(14).dropna(subset=["price_pkr_per_40kg"]).reset_index(drop=True)
-
-if len(lr_window) < 2:
-    st.info(f"Not enough price history for {crop} in {primary_region} to build a forecast yet (need at least 2 data points).")
-else:
-    x = np.arange(len(lr_window))
-    y = lr_window["price_pkr_per_40kg"].values
-    slope, intercept = np.polyfit(x, y, 1)  # simple least-squares line: y = slope*x + intercept
-
-    # residual std dev -> rough confidence band width (not a rigorous CI, just a
-    # visual signal that this is a forecast, not a guarantee)
-    residuals = y - (slope * x + intercept)
-    resid_std = residuals.std()
-
-    future_x = np.arange(len(lr_window), len(lr_window) + 7)
-    lr_future_prices = slope * future_x + intercept
-    lr_future_dates = [lr_window["date"].iloc[-1] + timedelta(days=i) for i in range(1, 8)]
-
-    # confidence band widens the further out the forecast goes, since we're
-    # less sure about day 7 than day 1
-    band_width = resid_std * (1 + 0.15 * np.arange(1, 8))
-    lr_upper = lr_future_prices + band_width
-    lr_lower = lr_future_prices - band_width
-
-    fig3 = go.Figure()
-    fig3.add_trace(go.Scatter(x=hist["date"], y=hist["price_pkr_per_40kg"], name="Actual price", mode="lines"))
-    fig3.add_trace(go.Scatter(x=hist["date"], y=hist["ma7"], name="7-day MA", mode="lines", line=dict(dash="dot")))
-    fig3.add_trace(go.Scatter(x=future_dates, y=future_prices, name="Forecast (moving avg)", mode="lines", line=dict(dash="dash", color="orange")))
-    fig3.add_trace(go.Scatter(x=lr_future_dates, y=lr_future_prices, name="Forecast (linear regression)", mode="lines", line=dict(dash="dash", color="purple")))
-
-    # confidence band: draw upper then lower with fill="tonexty" to shade between them
-    fig3.add_trace(go.Scatter(x=lr_future_dates, y=lr_upper, mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
-    fig3.add_trace(go.Scatter(
-        x=lr_future_dates, y=lr_lower, mode="lines", line=dict(width=0),
-        fill="tonexty", fillcolor="rgba(128,0,128,0.15)", name="Confidence band", hoverinfo="skip",
-    ))
-
-    fig3.update_layout(yaxis_title="PKR per 40kg", height=400)
-    st.plotly_chart(fig3, width='stretch')
-    st.caption("Two forecasting methods shown for comparison. The shaded band is a rough confidence range (not a statistical guarantee) — wider further out, since near-term forecasts are more reliable than longer-term ones.")
-
-# ---------------------------------------------------------------------------
-# 7. RULE-BASED SELL ADVISORY (placeholder for Week 3 Gemini upgrade)
-# ---------------------------------------------------------------------------
-st.subheader("Sell advisory")
-
-if chg_7d is None:
-    advice, color = "NOT ENOUGH DATA — need at least 7 days of price history for this crop/region to give advisory.", "gray"
-elif chg_7d > 5 and recent_slope > 0:
-    advice, color = "HOLD — price is rising, consider waiting a few more days.", "green"
-elif chg_7d < -5:
-    advice, color = "SELL SOON — price has been falling; further drops possible.", "red"
-else:
-    advice, color = "MONITOR — price is relatively stable right now.", "orange"
-
-st.markdown(f"**Advisory for {crop} in {primary_region}:** :{color}[{advice}]")
-st.caption("Rule-based (trend + slope) advisory. This is advisory only, not financial advice.")
-
-# ---------------------------------------------------------------------------
-# 7b. AI-GENERATED NATURAL LANGUAGE INSIGHT (Week 3: Gemini layer — Premium feature)
-# ---------------------------------------------------------------------------
-st.markdown("**AI insight** (experimental)")
-
-ai_insight = None
-if not is_premium:
-    st.caption("🔒 AI insights are a Premium feature. Click '⭐ Upgrade to Premium' in the sidebar to unlock.")
-else:
-    gemini_key = st.sidebar.text_input(
-        "Gemini API key (optional, for AI insights)", type="password",
-        help="Get a free key at https://aistudio.google.com — leave blank to skip AI insights.",
-    )
-
-    ai_insight = get_ai_insight(crop, primary_region, latest_price, chg_7d, chg_30d, api_key=gemini_key)
-
-    if ai_insight:
-        st.info(f"🤖 {ai_insight}")
-    else:
-        st.caption(
-            "No AI insight available — paste a Gemini API key in the sidebar to enable this "
-            "(get a free one at aistudio.google.com), or the call may have failed. "
-            "The rule-based advisory above still works either way."
-        )
-
-# ---------------------------------------------------------------------------
-# 8. MOCK NEWS / ALERTS FEED
-# ---------------------------------------------------------------------------
-st.subheader("News & alerts (mock)")
-mock_news = [
-    "⚠️ Early blight reported in potato crops near Okara — regional supply may tighten.",
-    "🌧️ Heavy rains forecast in Punjab next week — possible transport delays to mandis.",
-    "📈 Eid demand expected to push meat & produce prices up over the next 10 days.",
-]
-for n in mock_news:
-    st.write("-", n)
-
-# ---------------------------------------------------------------------------
-# 9. EXPORT (CSV = free tier, PDF report = Premium)
-# ---------------------------------------------------------------------------
-st.subheader("Export data")
-
-col_csv, col_pdf = st.columns(2)
-
-csv = filtered.to_csv(index=False).encode("utf-8")
-col_csv.download_button("📄 Download filtered data as CSV", csv, file_name=f"{crop}_prices.csv", mime="text/csv")
-
-if is_premium:
-    # UPGRADE (Week 3 "polish... export"): one-click PDF summary report — crop,
-    # region, current stats, advisory, and AI insight, for records/printing.
-    pdf_bytes = build_pdf_report(
-        crop=crop, region=primary_region, latest_price=latest_price,
-        chg_7d=chg_7d, chg_30d=chg_30d, advice=advice, ai_insight=ai_insight,
-    )
-    col_pdf.download_button(
-        "📑 Download PDF summary report", pdf_bytes,
-        file_name=f"{crop}_{primary_region}_report.pdf", mime="application/pdf",
-    )
-else:
-    col_pdf.caption("🔒 PDF reports are a Premium feature. Upgrade in the sidebar to unlock.")
+pg = st.navigation([page_dashboard, page_ask, page_account])
+pg.run()
