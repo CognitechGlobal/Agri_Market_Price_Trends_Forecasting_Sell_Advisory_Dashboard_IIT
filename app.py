@@ -155,10 +155,25 @@ def ensure_data_file():
 ensure_data_file()
 
 
-@st.cache_data
+@st.cache_data(show_spinner=False)
 def load_data():
     df = pd.read_csv(DATA_FILE, parse_dates=["Date"])
-    return df.rename(columns={"City": "region", "Date": "date", "Crop": "crop", "Price": "price_pkr_per_40kg"})
+    df = df.rename(columns={"City": "region", "Date": "date", "Crop": "crop", "Price": "price_pkr_per_40kg"})
+
+    # FIX: some rows in the combined 53-crop dataset have a missing/blank
+    # crop or region value. That NaN sits in the same column as real text,
+    # and Python can't sort a list containing both a string and a float
+    # (`sorted()` raises "'<' not supported between instances of 'float'
+    # and 'str'"). This crashed the "Ask About a Crop" page in production
+    # since it calls sorted(df["crop"].unique()) to build the known-crops
+    # list. Cleaning it here, once, means every page that reads df_base is
+    # protected — not just the one that happened to trip over it first.
+    df = df.dropna(subset=["region", "date", "crop", "price_pkr_per_40kg"])
+    df["crop"] = df["crop"].astype(str)
+    df["region"] = df["region"].astype(str)
+    df = df[df["price_pkr_per_40kg"] > 0]
+
+    return df
 
 
 df_base = load_data()
