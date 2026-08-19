@@ -29,6 +29,7 @@ crash the app.
 """
 
 import re
+import json
 import difflib
 from price_utils import find_valid_region, get_crop_stats, get_forecast, rule_based_advice
 from ai_advisory import call_gemini_raw
@@ -123,42 +124,100 @@ def translate_text(text, target_lang):
     return call_gemini_raw(prompt)
 
 
-def match_crop(query_en, known_crops):
+def load_crop_translations():
     """
-    Fuzzy-matches a free-text query against the list of known crop names.
-
-    Rather than stopping at the FIRST substring match (which incorrectly
-    matched "apple golden" to "Apple (Ammre)" just because both start with
-    "apple"), this scores every crop by how many of its words appear in the
-    query, and returns the crop with the strongest overall match. Typos are
-    handled by fuzzy-matching individual words (via difflib) rather than
-    comparing whole crop names, since "aple" vs "apple (ammre)" scores very
-    differently than "aple" vs "apple".
+    Loads crop_translations.json (built by build_crop_translations.py), if
+    it exists. Returns {} if not — matching still works using plain English
+    words and the small hardcoded Roman Urdu dictionary above, just without
+    the fuller crop-specific Urdu/Roman Urdu vocabulary.
     """
-    query_words = re.findall(r"\w+", query_en.lower())
-    if not query_words:
-        return None
+    try:
+        with open("crop_translations.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
-    best_crop, best_score = None, 0
 
+def _crop_candidate_words(crop, translations):
+    """
+    All words that should count as referring to this crop: its English
+    name, ALL its known Roman Urdu spelling variants (since phonetic
+    transliteration allows several valid spellings for the same word —
+    e.g. "seb" and "saib" are both correct for سیب/apple), and its Urdu
+    script name.
+    """
+    words = set(re.findall(r"\w+", crop.lower()))
+    entry = translations.get(crop)
+    if entry:
+        roman_variants = entry.get("roman_urdu", [])
+        if isinstance(roman_variants, str):
+            roman_variants = [roman_variants]  # backward-compat with older single-string format
+        for variant in roman_variants:
+            words.update(re.findall(r"\w+", variant.lower()))
+        if entry.get("urdu"):
+            # Urdu script has no upper/lowercase, so words are compared
+            # as-is rather than lowercased like the English/Roman ones.
+            words.update(entry["urdu"].split())
+    return words
+
+
+CONFIDENT_MATCH_SCORE = 2  # at least one exact word match, or two weaker fuzzy ones
+
+
+def score_crops(query_words, known_crops, translations):
+    """
+    Scores every known crop against the query's words (already lowercased/
+    tokenized by the caller). Returns a list of (crop, score) sorted
+    highest-first — the caller decides what counts as "confident enough"
+    versus merely "worth suggesting."
+    """
+    scored = []
     for crop in known_crops:
-        # Break "Apple (Golden)" into ["apple", "golden"] — punctuation stripped
-        crop_words = re.findall(r"\w+", crop.lower())
+        candidates = _crop_candidate_words(crop, translations)
         score = 0
-        for cw in crop_words:
-            if cw in query_words:
+        for cand in candidates:
+            if cand in query_words:
                 score += 2  # exact word match — strong signal
             else:
-                # fuzzy match against each query word for typo tolerance
-                close = difflib.get_close_matches(cw, query_words, n=1, cutoff=0.75)
+                close = difflib.get_close_matches(cand, query_words, n=1, cutoff=0.7)
                 if close:
-                    score += 1  # fuzzy match — weaker signal than exact
+                    score += 1  # fuzzy/partial match — weaker signal
+        if score > 0:
+            scored.append((crop, score))
 
-        if score > best_score:
-            best_score = score
-            best_crop = crop
+    scored.sort(key=lambda x: -x[1])
+    return scored
 
-    return best_crop if best_score > 0 else None
+
+def match_crop(query_en, known_crops, translations=None):
+    """
+    Returns (matched_crop, suggested_crop). Exactly one of these is set (or
+    both None if nothing at all matched):
+      - matched_crop: a confident match — proceed normally
+      - suggested_crop: a weak/partial match — not confident enough to
+        answer directly, but worth asking "did you mean X?" instead of a
+        flat "couldn't find it" failure.
+    """
+    if translations is None:
+        translations = {}
+
+    # Match against BOTH the (possibly translated-to-English) query words
+    # AND the original raw query's words — covers cases where the original
+    # Urdu-script or Roman Urdu text matches a stored translation directly,
+    # even if the English translation round-trip lost some precision.
+    query_words = re.findall(r"\w+", query_en.lower())
+    if not query_words:
+        return None, None
+
+    scored = score_crops(query_words, known_crops, translations)
+    if not scored:
+        return None, None
+
+    top_crop, top_score = scored[0]
+    if top_score >= CONFIDENT_MATCH_SCORE:
+        return top_crop, None
+    else:
+        return None, top_crop  # weak match — offer as a suggestion, not a direct answer
 
 
 def answer_query(query_text, df, regions_to_check):
@@ -186,11 +245,30 @@ def answer_query(query_text, df, regions_to_check):
     else:
         query_en = query_text
 
-    # Step 2: match against known crops
+    # Step 2: match against known crops — using English names PLUS any
+    # Urdu/Roman Urdu translations built by build_crop_translations.py
     known_crops = sorted(df["crop"].unique())
-    matched_crop = match_crop(query_en, known_crops)
-    if not matched_crop:
+    translations = load_crop_translations()
+    matched_crop, suggested_crop = match_crop(query_en, known_crops, translations)
+
+    if not matched_crop and not suggested_crop:
         error_en = "Sorry, I couldn't identify which crop you're asking about. Try naming it more directly, e.g. 'wheat price'."
+        if lang == "ur":
+            error_ur = translate_text(error_en, "ur")
+            error_en = error_ur or error_en
+        return {"answer": None, "matched_crop": None, "lang": lang, "error": error_en}
+
+    if not matched_crop and suggested_crop:
+        # Weak match only — ask "did you mean X?" instead of failing flat.
+        # Show the suggestion in Urdu script too if we have a translation
+        # for it, so the farmer recognizes the name even if their exact
+        # wording didn't match.
+        entry = translations.get(suggested_crop, {})
+        crop_display = suggested_crop
+        if entry.get("urdu"):
+            crop_display = f"{suggested_crop} ({entry['urdu']})"
+
+        error_en = f"I couldn't find an exact match. Did you mean **{crop_display}**? Try asking again using that name."
         if lang == "ur":
             error_ur = translate_text(error_en, "ur")
             error_en = error_ur or error_en
