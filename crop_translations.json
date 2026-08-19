@@ -1,10 +1,210 @@
 {
+  "Apple (Golden)": {
+    "urdu": "سنہری سیب",
+    "roman_urdu": ["golden seb", "golden saib", "sunehri seb"]
+  },
+  "Apricot White": {
+    "urdu": "سفید خوبانی",
+    "roman_urdu": ["safed khubani", "white apricot", "khubani"]
+  },
+  "Banana(DOZENS)": {
+    "urdu": "کیلا",
+    "roman_urdu": ["kela", "kayla", "banana"]
+  },
+  "Batho": {
+    "urdu": "باتھو",
+    "roman_urdu": ["batho", "bathua", "bathwa"]
+  },
+  "Brown Sugar(شکر)": {
+    "urdu": "بھوری شکر",
+    "roman_urdu": ["bhoori shakkar", "brown sugar", "shakkar"]
+  },
+  "Cabbage": {
+    "urdu": "بند گوبھی",
+    "roman_urdu": ["band gobhi", "gobhi", "cabbage"]
+  },
+  "Canola": {
+    "urdu": "کینولا",
+    "roman_urdu": ["canola", "kanola"]
+  },
+  "Capsicum (شملہ مرچ)": {
+    "urdu": "شملہ مرچ",
+    "roman_urdu": ["shimla mirch", "capsicum", "shimla mirch"]
+  },
+  "Carrot": {
+    "urdu": "گاجر",
+    "roman_urdu": ["gajar", "gaajar"]
+  },
+  "Cauliflower": {
+    "urdu": "پھول گوبھی",
+    "roman_urdu": ["phool gobhi", "gobhi", "cauliflower"]
+  },
+  "Cocunut": {
+    "urdu": "ناریل",
+    "roman_urdu": ["nariyal", "coconut", "naryal"]
+  },
+  "Coriander (دھنیا)": {
+    "urdu": "دھنیا",
+    "roman_urdu": ["dhania", "dhaniya", "coriander"]
+  },
+  "Cucumber (Kheera)": {
+    "urdu": "کھیرا",
+    "roman_urdu": ["kheera", "khira", "cucumber"]
+  },
   "Garlic (Local)": {
     "urdu": "دیسی لہسن",
-    "roman_urdu": [
-      "desi lehsan",
-      "desi lasan",
-      "desi lehsen"
-    ]
+    "roman_urdu": ["desi lehsan", "desi lasan", "lehsan"]
+  },
+  "Ginger (Thai)": {
+    "urdu": "تھائی ادرک",
+    "roman_urdu": ["thai adrak", "adrak", "ginger"]
+  },
+  "Gram Black": {
+    "urdu": "کالا چنا",
+    "roman_urdu": ["kala chana", "black gram", "kala channa"]
+  },
+  "Gram Flour (بیسن)": {
+    "urdu": "بیسن",
+    "roman_urdu": ["besan", "gram flour", "besan"]
+  },
+  "Gram Pulse": {
+    "urdu": "چنا دال",
+    "roman_urdu": ["chana daal", "gram pulse", "channa daal"]
+  },
+  "Gram White(local)": {
+    "urdu": "سفید چنا",
+    "roman_urdu": ["safed chana", "white gram", "safed channa"]
+  },
+  "Grapefruit(100Pcs)": {
+    "urdu": "انگور فروٹ",
+    "roman_urdu": ["grapefruit", "angoor fruit", "grape fruit"]
+  },
+  "Grapes (Other)": {
+    "urdu": "انگور",
+    "roman_urdu": ["angoor", "angur", "grapes"]
+  },
+  "Green Chilli": {
+    "urdu": "ہری مرچ",
+    "roman_urdu": ["hari mirch", "green chilli", "hari mirchi"]
+  },
+  "Green Fodder": {
+    "urdu": "ہرا چارہ",
+    "roman_urdu": ["hara chara", "green fodder", "chara"]
+  },
+  "Green Onion": {
+    "urdu": "ہرا پیاز",
+    "roman_urdu": ["hara pyaz", "green onion", "hara pyaaz"]
+  },
+  "Groundnut": {
+    "urdu": "مونگ پھلی",
+    "roman_urdu": ["moong phali", "groundnut", "mungfali"]
+  },
+  "Guava": {
+    "urdu": "امرود",
+    "roman_urdu": ["amrood", "amrud", "guava"]
+  },
+  "Jaggery (گڑ)": {
+    "urdu": "گڑ",
+    "roman_urdu": ["gur", "gurr", "jaggery"]
+  },
+  "Jaman": {
+    "urdu": "جامن",
+    "roman_urdu": ["jaman", "jamun", "java plum"]
+  },
+  "Lemon (China)": {
+    "urdu": "چینی لیموں",
+    "roman_urdu": ["chini leemun", "china lemon", "leemun"]
+  },
+  "Lemon (Desi)": {
+    "urdu": "دیسی لیموں",
+    "roman_urdu": ["desi leemun", "desi lemon", "leemun"]
+  },
+  "Lemon (Other)": {
+    "urdu": "لیموں",
+    "roman_urdu": ["leemun", "lemon", "nimbu"]
+  },
+  "Mango (Malda)": {
+    "urdu": "مالدا آم",
+    "roman_urdu": ["malda aam", "malda mango", "aam"]
+  },
+  "Mango Desi": {
+    "urdu": "دیسی آم",
+    "roman_urdu": ["desi aam", "desi mango", "aam"]
+  },
+  "Mango Saharni": {
+    "urdu": "سہرنی آم",
+    "roman_urdu": ["saharni aam", "saharni mango", "aam"]
+  },
+  "Mango(Anwer Ratol)": {
+    "urdu": "انور رتول آم",
+    "roman_urdu": ["anwar ratol", "anwer ratol aam", "aam"]
+  },
+  "Mango(Chounsa)": {
+    "urdu": "چونسا آم",
+    "roman_urdu": ["chaunsa", "chounsa aam", "aam"]
+  },
+  "Mango(Desahri)": {
+    "urdu": "دسہری آم",
+    "roman_urdu": ["dasheri", "desahri aam", "aam"]
+  },
+  "Mango(Sindhri)": {
+    "urdu": "سندھری آم",
+    "roman_urdu": ["sindhri", "sindhri aam", "aam"]
+  },
+  "Mash": {
+    "urdu": "ماش",
+    "roman_urdu": ["mash", "maash", "urd"]
+  },
+  "Mash Pulse(Imported) washed": {
+    "urdu": "درآمدی دھلی ماش دال",
+    "roman_urdu": ["imported mash daal", "washed mash", "maash daal"]
+  },
+  "Mash Pulse(local)": {
+    "urdu": "دیسی ماش دال",
+    "roman_urdu": ["desi mash daal", "local mash", "maash daal"]
+  },
+  "Musambi(100Pcs)": {
+    "urdu": "موسامی",
+    "roman_urdu": ["mosambi", "musambi", "sweet lime"]
+  },
+  "Mustard Greens(ساگ سرسوں)": {
+    "urdu": "ساگ سرسوں",
+    "roman_urdu": ["saag sarson", "mustard greens", "sarson saag"]
+  },
+  "Mustard seed": {
+    "urdu": "سرسوں کے بیج",
+    "roman_urdu": ["sarson ke beej", "mustard seed", "sarson"]
+  },
+  "Orange(100Pcs)": {
+    "urdu": "مالٹا",
+    "roman_urdu": ["malta", "orange", "santra"]
+  },
+  "Papaya(پپیتا)": {
+    "urdu": "پپیتا",
+    "roman_urdu": ["papeeta", "papaya", "papita"]
+  },
+  "Peach": {
+    "urdu": "آڑو",
+    "roman_urdu": ["aaro", "peach", "aaru"]
+  },
+  "Peach Special": {
+    "urdu": "خاص آڑو",
+    "roman_urdu": ["khaas aaro", "peach special", "aaro"]
+  },
+  "feutral early(100 Pcs)": {
+    "urdu": "فیوٹرل ارلی",
+    "roman_urdu": ["feutral early", "futral", "early citrus"]
+  },
+  "فروٹر": {
+    "urdu": "فروٹر",
+    "roman_urdu": ["frooter", "futral", "feutral"]
+  },
+  "green chickpeas(چھولیا)": {
+    "urdu": "چھولیا",
+    "roman_urdu": ["chholia", "green chickpeas", "cholia"]
+  },
+  "jujube(بیر)": {
+    "urdu": "بیر",
+    "roman_urdu": ["ber", "jujube", "beir"]
   }
 }
