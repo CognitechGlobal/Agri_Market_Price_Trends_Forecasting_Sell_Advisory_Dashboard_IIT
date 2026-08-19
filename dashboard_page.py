@@ -109,13 +109,13 @@ def render(df_base, is_premium, username):
                         st.success(f"Added: {m_crop} in {m_region} on {m_date} — PKR {m_price:,.0f}")
 
         if len(st.session_state.extra_data) > 0:
-            st.caption(f"📌 {len(st.session_state.extra_data)} row(s) added this session (not yet saved to file).")
-            if st.button("💾 Save all added data to real_mandi_prices.csv"):
+            st.caption(f"{len(st.session_state.extra_data)} row(s) added this session (not yet saved to file).")
+            if st.button("Save all added data to real_mandi_prices.csv"):
                 combined = pd.concat([df_base, st.session_state.extra_data], ignore_index=True)
                 combined = combined.rename(columns={"region": "City", "date": "Date", "crop": "Crop", "price_pkr_per_40kg": "Price"})
                 combined.to_csv("real_mandi_prices.csv", index=False)
                 st.success("Saved! Restart the app to reload from the updated file.")
-            if st.button("🗑️ Clear added data (this session only)"):
+            if st.button("Clear added data (this session only)"):
                 st.session_state.extra_data = pd.DataFrame(columns=["region", "date", "crop", "price_pkr_per_40kg"])
                 st.rerun()
 
@@ -147,11 +147,11 @@ def render(df_base, is_premium, username):
         st.session_state["start_date_input"] = allowed_min_date
 
     if not is_premium:
-        st.sidebar.caption("📂 Saved dashboards are a Premium feature — upgrade to unlock.")
+        st.sidebar.caption("Saved dashboards are a Premium feature — upgrade to unlock.")
     else:
         my_saved = get_saved_dashboards(username)
         if my_saved:
-            with st.sidebar.expander("📂 Load a saved dashboard"):
+            with st.sidebar.expander("Load a saved dashboard"):
                 pick = st.selectbox("Saved views", ["-- none --"] + list(my_saved.keys()))
                 col_load, col_del = st.columns(2)
                 if col_load.button("Load", disabled=(pick == "-- none --")):
@@ -182,14 +182,35 @@ def render(df_base, is_premium, username):
     date_range = (pd.Timestamp(start_date), pd.Timestamp(end_date))
 
     if is_premium:
-        with st.sidebar.expander("💾 Save current view"):
+        # FIX: st.expander can collapse on the very rerun triggered by
+        # clicking "Save" inside it, which hides the success/error message
+        # that was written inside — looking exactly like "nothing happened"
+        # even though the save may have actually worked. Tracking expanded
+        # state explicitly in session_state keeps it open across that rerun.
+        if "save_expander_open" not in st.session_state:
+            st.session_state.save_expander_open = False
+
+        with st.sidebar.expander("💾 Save current view", expanded=st.session_state.save_expander_open):
+            # FIX: a message shown right before st.rerun() gets wiped out —
+            # the rerun restarts the script before the message is ever
+            # actually seen. Storing it in session_state and displaying it
+            # AFTER the rerun (on the next line down) is what makes it
+            # actually persist long enough to be visible.
+            if "save_message" in st.session_state:
+                msg_type, msg_text = st.session_state.pop("save_message")
+                getattr(st, msg_type)(msg_text)
+
             save_name = st.text_input("Name this view", placeholder="e.g. My Potato Watch")
             if st.button("Save"):
+                st.session_state.save_expander_open = True
                 if not save_name.strip():
-                    st.error("Give it a name first.")
+                    st.session_state.save_message = ("error", "Give it a name first.")
                 else:
                     ok, msg = save_dashboard(username, save_name.strip(), crop, regions, start_date, end_date)
-                    st.success(msg) if ok else st.error(msg)
+                    st.session_state.save_message = ("success", msg) if ok else ("error", msg)
+                # Rerun so "Load a saved dashboard" above picks up the new
+                # entry immediately, and so the message above actually shows.
+                st.rerun()
 
     if not regions:
         st.warning("Select at least one region from the sidebar.")
