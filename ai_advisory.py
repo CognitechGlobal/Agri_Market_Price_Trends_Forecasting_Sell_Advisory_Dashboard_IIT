@@ -29,7 +29,7 @@ SETUP:
 import os
 import requests
 
-GEMINI_MODEL = "gemini-3.5-flash"  # current fast/cheap model as of mid-2026
+GEMINI_MODEL = "gemini-2.0-flash"  # current fast/cheap model as of mid-2026
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 

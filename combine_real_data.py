@@ -58,7 +58,7 @@ for f in csv_files:
     frames.append(df)
 
 if bad_files:
-    print(f"\n⚠️  {len(bad_files)} file(s) had problems and were SKIPPED:")
+    print(f"\n{len(bad_files)} file(s) had problems and were SKIPPED:")
     for f, reason in bad_files:
         print(f"   - {os.path.basename(f)}: {reason}")
     print("   Fix these separately if you need that data — the rest will still combine fine.\n")
@@ -100,7 +100,7 @@ print(f"Final combined shape: {combined.shape[0]} rows")
 combined = combined.sort_values(["Crop", "City", "Date"]).reset_index(drop=True)
 combined.to_csv(OUTPUT_FILE, index=False)
 
-print(f"\n✅ Saved combined dataset -> {OUTPUT_FILE}")
+print(f"\nSaved combined dataset -> {OUTPUT_FILE}")
 print(f"\nSummary:")
 print(f"  Unique crops:  {combined['Crop'].nunique()}")
 print(f"  Unique cities: {combined['City'].nunique()}")
