@@ -33,15 +33,83 @@ import difflib
 from price_utils import find_valid_region, get_crop_stats, get_forecast, rule_based_advice
 from ai_advisory import call_gemini_raw
 
+# ROMAN URDU SUPPORT: most Pakistani farmers text in Urdu written with
+# English letters ("aloo ki keemat kya hai"), not actual Urdu script. The
+# original language detector only caught real Urdu script (Unicode
+# U+0600-U+06FF), so Roman Urdu queries were silently treated as English —
+# which meant "aloo" never matched "Potato" and the answer never got
+# translated back. These two lookups fix that:
+# 1. Common crop names in Roman Urdu -> their English equivalent, so
+#    matching works even though the words look nothing alike.
+# 2. Common Roman Urdu grammar words ("hai", "kya", "kitni", "keemat") -
+#    if a query contains these, treat it as Urdu for response purposes even
+#    though it's written in Latin letters and the script-check missed it.
+ROMAN_URDU_CROP_SYNONYMS = {
+    "aloo": "potato", "alu": "potato",
+    "pyaz": "onion", "pyaaz": "onion", "piyaz": "onion",
+    "tamatar": "tomato", "tamater": "tomato",
+    "gandum": "wheat", "ganeh": "wheat",
+    "chawal": "rice", "chaawal": "rice",
+    "gobi": "cauliflower",
+    "matar": "peas",
+    "adrak": "ginger",
+    "lehsan": "garlic", "lehsun": "garlic",
+    "seb": "apple",
+    "kela": "banana", "kelaa": "banana",
+    "santra": "orange", "musammi": "orange",
+    "amrud": "guava",
+    "angoor": "grape",
+    "kharbooza": "melon",
+    "tarbooz": "watermelon",
+    "palak": "spinach",
+    "gajar": "carrot",
+    "mirch": "chili", "mirchi": "chili",
+    "makai": "maize", "makkai": "corn",
+    "jau": "barley",
+    "masoor": "lentil",
+    "chana": "chickpea", "channa": "chickpea",
+    "shakarqandi": "sweet potato",
+    "bhindi": "okra",
+    "baingan": "brinjal", "baingann": "eggplant",
+    "karela": "bittergourd",
+    "lauki": "gourd",
+    "kaddu": "pumpkin",
+}
+
+ROMAN_URDU_MARKER_WORDS = {
+    "kia", "kya", "hai", "hain", "ka", "ki", "ke", "mein", "kitni", "kitna",
+    "keemat", "qeemat", "daam", "bhao", "kab", "kahan", "kaisa", "kaisi", "bataye",
+}
+
 
 def detect_language(text):
-    """Returns 'ur' if the text contains Urdu/Arabic-script characters,
-    otherwise 'en'. Urdu uses Unicode range U+0600–U+06FF — a simple,
-    reliable, offline check with no API call needed."""
+    """
+    Returns 'ur' if the text is Urdu — either real Urdu script (Unicode
+    U+0600-U+06FF) or Roman Urdu (Latin letters but Urdu grammar/vocabulary,
+    detected via common marker words or crop-name synonyms above).
+    Otherwise returns 'en'.
+    """
     for ch in text:
         if "\u0600" <= ch <= "\u06FF":
             return "ur"
+
+    words = re.findall(r"\w+", text.lower())
+    if any(w in ROMAN_URDU_MARKER_WORDS or w in ROMAN_URDU_CROP_SYNONYMS for w in words):
+        return "ur"
+
     return "en"
+
+
+def expand_roman_urdu_crop_names(text):
+    """
+    Appends the English equivalent of any recognized Roman Urdu crop name
+    onto the text, so match_crop() has an actual English word to work with.
+    E.g. "aloo price" becomes "aloo price potato" — match_crop then finds
+    "potato" in there and matches correctly.
+    """
+    words = re.findall(r"\w+", text.lower())
+    additions = [ROMAN_URDU_CROP_SYNONYMS[w] for w in words if w in ROMAN_URDU_CROP_SYNONYMS]
+    return text + " " + " ".join(additions) if additions else text
 
 
 def translate_text(text, target_lang):
@@ -109,10 +177,12 @@ def answer_query(query_text, df, regions_to_check):
     if lang == "ur":
         query_en = translate_text(query_text, "en")
         if query_en is None:
-            return {
-                "answer": None, "matched_crop": None, "lang": lang,
-                "error": "Translation failed — check that a Gemini API key is configured.",
-            }
+            # Gemini unavailable (no key / network issue) — fall back to the
+            # local Roman Urdu synonym dictionary instead of giving up
+            # entirely. This won't handle full sentences as well as real
+            # translation, but it means "aloo price" still matches "Potato"
+            # even with zero API dependency.
+            query_en = expand_roman_urdu_crop_names(query_text)
     else:
         query_en = query_text
 

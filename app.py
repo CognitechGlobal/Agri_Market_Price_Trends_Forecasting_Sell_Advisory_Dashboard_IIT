@@ -196,9 +196,9 @@ def _render_account():
     account_page.render(st.session_state.username, is_premium)
 
 
-page_dashboard = st.Page(_render_dashboard, title=t("nav_dashboard"), icon="📊")
-page_ask = st.Page(_render_ask, title=t("nav_ask"), icon="💬")
-page_account = st.Page(_render_account, title=t("nav_account"), icon="⚙️")
+page_dashboard = st.Page(_render_dashboard, title=t("nav_dashboard"))
+page_ask = st.Page(_render_ask, title=t("nav_ask"))
+page_account = st.Page(_render_account, title=t("nav_account"))
 
 pg = st.navigation([page_dashboard, page_ask, page_account])
 pg.run()
