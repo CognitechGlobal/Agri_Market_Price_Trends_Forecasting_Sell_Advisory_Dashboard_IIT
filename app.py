@@ -60,12 +60,21 @@ lang_choice = st.sidebar.radio(
 )
 st.session_state.lang = lang_choice
 
-# Urdu is a right-to-left script — flip text alignment when Urdu is active
-# so it reads naturally instead of left-aligned Urdu text (which looks wrong).
+# Urdu is a right-to-left script — use a standard Nastaliq font and flip
+# text alignment so it reads naturally instead of left-aligned Latin font.
 if st.session_state.lang == "ur":
     st.markdown("""
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-    .stMarkdown, .stText, p, h1, h2, h3, .stCaption { direction: rtl; text-align: right; }
+    html, body, [class*="st-"], .stMarkdown, .stText, p, h1, h2, h3, h4,
+    .stCaption, .stChatMessage, label, div, span, input, textarea, button {
+        font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Al Qalam Taj Nastaleeq", serif !important;
+    }
+    .stMarkdown, .stText, p, h1, h2, h3, .stCaption, .stChatMessage {
+        direction: rtl;
+        text-align: right;
+        line-height: 2;
+    }
     </style>
     """, unsafe_allow_html=True)
 
