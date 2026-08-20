@@ -49,7 +49,7 @@ def render(df):
     if not st.session_state.chat_history:
         st.info(
             "Try asking something like:\n"
-            "- \"What is the price of wheat?\"\n"
-            "- \"آلو کی قیمت کیا ہے؟\" (What is the price of potato?)\n"
-            "- \"Should I sell my tomato now?\""
+            "- \"What is the price of apple?\"\n"
+            "- \"آم کی قیمت کیا ہے؟\" (What is the price of mango?)\n"
+            "- \"Should I sell my garlic now?\""
         )

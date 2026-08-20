@@ -49,12 +49,12 @@ TRANSLATIONS = {
     "sell_advisory": {"en": "Sell advisory", "ur": "فروخت کا مشورہ"},
     "ai_insight": {"en": "AI insight", "ur": "AI بصیرت"},
 
-    "ask_placeholder": {"en": "e.g. What's the price forecast for potato?", "ur": "مثلاً آلو کی قیمت کا کیا اندازہ ہے؟"},
+    "ask_placeholder": {"en": "e.g. What's the price of mango?", "ur": "مثلاً آم کی قیمت کیا ہے؟"},
     "ask_button": {"en": "Ask", "ur": "پوچھیں"},
     "ask_title": {"en": "Ask About a Crop", "ur": "فصل کے بارے میں پوچھیں"},
     "ask_subtitle": {
-        "en": "Type your question in English or Urdu — e.g. \"what is the price of wheat\" or \"گندم کی قیمت کیا ہے\"",
-        "ur": "اپنا سوال اردو یا انگریزی میں لکھیں — مثلاً \"گندم کی قیمت کیا ہے\"",
+        "en": "Type your question in English or Urdu — e.g. \"what is the price of apple\" or \"آم کی قیمت کیا ہے\"",
+        "ur": "اپنا سوال اردو یا انگریزی میں لکھیں — مثلاً \"آم کی قیمت کیا ہے\"",
     },
 
     "language_label": {"en": "Language / زبان", "ur": "Language / زبان"},
