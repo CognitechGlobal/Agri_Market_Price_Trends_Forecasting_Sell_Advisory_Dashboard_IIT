@@ -14,10 +14,12 @@ PIPELINE:
 3. Fuzzy-match the translated query against the known crop names in the
    dataset, using Python's built-in difflib — no extra dependency, and good
    enough for matching short crop names/phrases.
-4. Pull the actual stats for that crop using price_utils (the SAME
+4. Detect a city/mandi name from the question (if the farmer named one).
+   Falls back to Dashboard-selected regions, then any region with data.
+5. Pull the actual stats for that crop+region using price_utils (the SAME
    calculation logic the dashboard charts use).
-5. Build a plain-English answer sentence from those stats.
-6. If the original question was in Urdu, translate the answer back to Urdu
+6. Build a plain-English answer sentence from those stats.
+7. If the original question was in Urdu, translate the answer back to Urdu
    using Gemini before returning it.
 
 WHY GEMINI FOR TRANSLATION INSTEAD OF A TRANSLATION LIBRARY?
@@ -220,6 +222,82 @@ def match_crop(query_en, known_crops, translations=None):
         return None, top_crop  # weak match — offer as a suggestion, not a direct answer
 
 
+def _normalize_place(name):
+    """Lowercase and strip spaces/punctuation so 'Bahawal Pur', 'Bahawalpur',
+    and 'BahawalPur' all become 'bahawalpur' for comparison."""
+    return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def match_region(query_text, known_regions):
+    """
+    Tries to detect a city/mandi name from the farmer's question.
+    Returns the best matching region string (exact spelling from the dataset),
+    or None if nothing clear is found.
+
+    Your dataset uses concatenated names (BahawalPur, AhmadPurEast, DGKHAN).
+    Farmers usually type spaced or common spellings (Bahawalpur, D.G. Khan).
+    Matching strategy (strongest first):
+      1. Normalized exact match (ignore spaces/case/punctuation)
+      2. Query word(s) are a prefix/substring of a region (or vice-versa),
+         preferring the longest region name to avoid false positives
+      3. Fuzzy match via difflib for minor typos
+    """
+    if not known_regions:
+        return None
+
+    query_lower = query_text.lower()
+    query_norm = _normalize_place(query_text)
+    query_words = re.findall(r"[a-z0-9]+", query_lower)
+
+    # Pre-compute normalized forms once
+    region_norms = {region: _normalize_place(region) for region in known_regions}
+
+    # 1. Normalized exact match: "bahawalpur" == "BahawalPur"
+    for region, r_norm in region_norms.items():
+        if len(r_norm) >= 4 and r_norm in query_norm:
+            return region
+        # Also: multi-word query like "bahawal pur" already normalized above
+
+    # 2. Any query word (length >= 4) that is a substantial substring of a
+    #    region name, or a region name that is a substring of a query word.
+    #    Prefer longer region matches to avoid "pur" matching half the list.
+    candidates = []
+    for region, r_norm in region_norms.items():
+        if len(r_norm) < 4:
+            continue
+        for w in query_words:
+            if len(w) < 4:
+                continue
+            if w in r_norm or r_norm in w:
+                # score by how much of the region name was covered
+                overlap = min(len(w), len(r_norm))
+                candidates.append((overlap, len(r_norm), region))
+    if candidates:
+        candidates.sort(key=lambda x: (-x[0], -x[1]))
+        return candidates[0][2]
+
+    # 3. Fuzzy match against full normalized region names
+    norm_list = list(region_norms.values())
+    # Try each reasonably long query token + the full normalized query
+    probes = [w for w in query_words if len(w) >= 5] + ([query_norm] if len(query_norm) >= 5 else [])
+    best_region, best_score = None, 0.0
+    for probe in probes:
+        close = difflib.get_close_matches(probe, norm_list, n=1, cutoff=0.82)
+        if close:
+            score = difflib.SequenceMatcher(None, probe, close[0]).ratio()
+            if score > best_score:
+                best_score = score
+                # map normalized form back to original region string
+                for region, r_norm in region_norms.items():
+                    if r_norm == close[0]:
+                        best_region = region
+                        break
+    if best_region:
+        return best_region
+
+    return None
+
+
 def answer_query(query_text, df, regions_to_check):
     """
     Main entry point. Takes the farmer's raw question and the dataset,
@@ -252,7 +330,7 @@ def answer_query(query_text, df, regions_to_check):
     matched_crop, suggested_crop = match_crop(query_en, known_crops, translations)
 
     if not matched_crop and not suggested_crop:
-        error_en = "Sorry, I couldn't identify which crop you're asking about. Try naming it more directly, e.g. 'wheat price'."
+        error_en = "Sorry, I couldn't identify which crop you're asking about. Try naming it more directly, e.g. 'apple price'."
         if lang == "ur":
             error_ur = translate_text(error_en, "ur")
             error_en = error_ur or error_en
@@ -274,8 +352,32 @@ def answer_query(query_text, df, regions_to_check):
             error_en = error_ur or error_en
         return {"answer": None, "matched_crop": None, "lang": lang, "error": error_en}
 
-    # Step 3: get real stats for that crop (same logic as the dashboard)
-    region = find_valid_region(df, matched_crop, regions_to_check) or find_valid_region(df, matched_crop, sorted(df["region"].unique()))
+    # Step 3: choose region — prefer a city mentioned in the question,
+    # then fall back to Dashboard selection, then any region that has data.
+    all_regions = sorted(df["region"].unique())
+    region_from_query = match_region(query_text, all_regions)
+    # Also try the English-translated query in case the original was Urdu
+    if region_from_query is None and query_en != query_text:
+        region_from_query = match_region(query_en, all_regions)
+
+    if region_from_query:
+        # Confirm this region actually has data for the matched crop
+        region = find_valid_region(df, matched_crop, [region_from_query])
+        if region is None:
+            error_en = (
+                f"I found '{matched_crop}' but there is no price data for it in "
+                f"**{region_from_query}**. Try another city, or ask without naming a city."
+            )
+            if lang == "ur":
+                error_ur = translate_text(error_en, "ur")
+                error_en = error_ur or error_en
+            return {"answer": None, "matched_crop": matched_crop, "lang": lang, "error": error_en}
+    else:
+        region = (
+            find_valid_region(df, matched_crop, regions_to_check)
+            or find_valid_region(df, matched_crop, all_regions)
+        )
+
     if not region:
         error_en = f"I found the crop '{matched_crop}' but there's no price data available for it right now."
         if lang == "ur":
@@ -284,6 +386,10 @@ def answer_query(query_text, df, regions_to_check):
         return {"answer": None, "matched_crop": matched_crop, "lang": lang, "error": error_en}
 
     stats = get_crop_stats(df, matched_crop, region)
+    if stats is None:
+        error_en = f"I found '{matched_crop}' in {region}, but could not compute price stats."
+        return {"answer": None, "matched_crop": matched_crop, "lang": lang, "error": error_en}
+
     forecast = get_forecast(stats["hist"])
     advice, _ = rule_based_advice(stats["chg_7d"], stats["recent_slope"])
 
