@@ -58,6 +58,32 @@ TRANSLATIONS = {
     },
 
     "language_label": {"en": "Language / زبان", "ur": "Language / زبان"},
+
+    # Account page
+    "account_tier": {"en": "Tier", "ur": "درجہ"},
+    "account_tier_status": {
+        "en": "You are currently on the **{tier}** tier.",
+        "ur": "آپ اس وقت **{tier}** درجے پر ہیں۔",
+    },
+    "account_upgrade_hint": {
+        "en": "Upgrade from the sidebar to unlock full price history, AI insights, PDF export, and saved dashboards.",
+        "ur": "مکمل قیمت کی تاریخ، AI بصیرت، PDF برآمد، اور محفوظ ڈیش بورڈ کے لیے سائیڈ بار سے اپ گریڈ کریں۔",
+    },
+    "account_saved": {"en": "Saved dashboards", "ur": "محفوظ ڈیش بورڈ"},
+    "account_saved_locked": {
+        "en": "🔒 Saved dashboards are a Premium feature.",
+        "ur": "🔒 محفوظ ڈیش بورڈ ایک پریمیم خصوصیت ہے۔",
+    },
+    "account_saved_empty": {
+        "en": "You haven't saved any dashboard views yet. Save one from the Dashboard page's sidebar.",
+        "ur": "آپ نے ابھی کوئی ڈیش بورڈ محفوظ نہیں کیا۔ ڈیش بورڈ صفحے کی سائیڈ بار سے محفوظ کریں۔",
+    },
+    "account_crop": {"en": "Crop", "ur": "فصل"},
+    "account_regions": {"en": "Regions", "ur": "شہر / منڈیاں"},
+    "account_date_range": {"en": "Date range", "ur": "تاریخ کی حد"},
+    "account_delete": {"en": "Delete", "ur": "حذف کریں"},
+    "tier_free_label": {"en": "Free", "ur": "فری"},
+    "tier_premium_label": {"en": "Premium", "ur": "پریمیم"},
 }
 
 
