@@ -27,6 +27,72 @@ import account_page
 
 st.set_page_config(page_title="Agri Price Advisory", layout="wide", page_icon="🌾")
 
+# Theme + light/dark toggle
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "light"
+
+theme_mode = st.sidebar.radio(
+    "Theme",
+    options=["light", "dark"],
+    format_func=lambda x: "☀️ Light" if x == "light" else "🌙 Dark",
+    horizontal=True,
+    index=0 if st.session_state.theme_mode == "light" else 1,
+    key="theme_radio",
+)
+st.session_state.theme_mode = theme_mode
+
+# Colors: dark green, sky blue, light green
+DARK_GREEN = "#1B5E20"
+SKY_BLUE = "#4FC3F7"
+LIGHT_GREEN = "#A5D6A7"
+
+if theme_mode == "dark":
+    bg = "#0D1F12"
+    text = "#E8F5E9"
+    card = "#1B3D24"
+    secondary = SKY_BLUE
+else:
+    bg = "#F1F8E9"
+    text = "#1B5E20"
+    card = "#FFFFFF"
+    secondary = DARK_GREEN
+
+st.markdown(f"""
+<style>
+    .stApp {{
+        background-color: {bg};
+        color: {text};
+    }}
+    [data-testid="stSidebar"] {{
+        background-color: {DARK_GREEN};
+    }}
+    [data-testid="stSidebar"] * {{
+        color: #E8F5E9 !important;
+    }}
+    h1, h2, h3 {{
+        color: {secondary} !important;
+    }}
+    .stButton > button {{
+        background-color: {DARK_GREEN};
+        color: white;
+        border: 1px solid {LIGHT_GREEN};
+    }}
+    .stButton > button:hover {{
+        background-color: {LIGHT_GREEN};
+        color: {DARK_GREEN};
+    }}
+    div[data-testid="stMetric"] {{
+        background-color: {card};
+        border-left: 4px solid {SKY_BLUE};
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+    }}
+    .stInfo, .stSuccess {{
+        border-left: 4px solid {SKY_BLUE};
+    }}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------------------------------------------------------------------
 # MOBILE RESPONSIVENESS (Week 4 requirement)
 # ---------------------------------------------------------------------------
@@ -196,18 +262,15 @@ df_base = load_data()
 def _render_dashboard():
     dashboard_page.render(df_base, is_premium, st.session_state.username)
 
-
 def _render_ask():
     ask_page.render(df_base)
-
 
 def _render_account():
     account_page.render(st.session_state.username, is_premium)
 
-
+page_ask = st.Page(_render_ask, title=t("nav_ask"), default=True)
 page_dashboard = st.Page(_render_dashboard, title=t("nav_dashboard"))
-page_ask = st.Page(_render_ask, title=t("nav_ask"))
 page_account = st.Page(_render_account, title=t("nav_account"))
 
-pg = st.navigation([page_dashboard, page_ask, page_account])
+pg = st.navigation([page_ask, page_dashboard, page_account])
 pg.run()
