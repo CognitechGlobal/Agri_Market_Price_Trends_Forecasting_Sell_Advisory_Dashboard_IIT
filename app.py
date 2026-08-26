@@ -27,7 +27,7 @@ import account_page
 
 st.set_page_config(page_title="Agri Price Advisory", layout="wide", page_icon="🌾")
 
-# Theme + light/dark toggle
+# --- Theme toggle ---
 if "theme_mode" not in st.session_state:
     st.session_state.theme_mode = "light"
 
@@ -41,72 +41,54 @@ theme_mode = st.sidebar.radio(
 )
 st.session_state.theme_mode = theme_mode
 
-# Colors: dark green, sky blue, light green
-DARK_GREEN = "#1B5E20"
-SKY_BLUE = "#4FC3F7"
-LIGHT_GREEN = "#A5D6A7"
-
+# CSS variables for light vs dark (styles.css uses these)
 if theme_mode == "dark":
-    bg = "#0D1F12"
-    text = "#E8F5E9"
-    card = "#1B3D24"
-    secondary = SKY_BLUE
+    st.markdown("""
+    <style>
+    :root {
+      --bg: #0D1F12;
+      --text: #E8F5E9;
+      --card: #1B3D24;
+      --input-bg: #1B3D24;
+      --input-text: #E8F5E9;
+      --placeholder: #A5D6A7;
+      --btn-bg: #1B5E20;
+      --btn-border: #A5D6A7;
+      --btn-hover: #2E7D32;
+      --sidebar-bg: #0A1810;
+      --sidebar-text: #E8F5E9;
+      --heading: #4FC3F7;
+      --alert-bg: #1B3D24;
+      --alert-text: #E8F5E9;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 else:
-    bg = "#F1F8E9"
-    text = "#1B5E20"
-    card = "#FFFFFF"
-    secondary = DARK_GREEN
+    st.markdown("""
+    <style>
+    :root {
+      --bg: #F1F8E9;
+      --text: #1B5E20;
+      --card: #FFFFFF;
+      --input-bg: #E8F5E9;
+      --input-text: #1B5E20;
+      --placeholder: #2E7D32;
+      --btn-bg: #A5D6A7;
+      --btn-border: #1B5E20;
+      --btn-hover: #81C784;
+      --sidebar-bg: #1B5E20;
+      --sidebar-text: #E8F5E9;
+      --heading: #1B5E20;
+      --alert-bg: #E8F5E9;
+      --alert-text: #1B5E20;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-st.markdown(f"""
-<style>
-    .stApp {{
-        background-color: {bg};
-        color: {text};
-    }}
-    [data-testid="stSidebar"] {{
-        background-color: {DARK_GREEN};
-    }}
-    [data-testid="stSidebar"] * {{
-        color: #E8F5E9 !important;
-    }}
-    h1, h2, h3 {{
-        color: {secondary} !important;
-    }}
-    .stButton > button {{
-        background-color: {DARK_GREEN};
-        color: white;
-        border: 1px solid {LIGHT_GREEN};
-    }}
-    .stButton > button:hover {{
-        background-color: {LIGHT_GREEN};
-        color: {DARK_GREEN};
-    }}
-    div[data-testid="stMetric"] {{
-        background-color: {card};
-        border-left: 4px solid {SKY_BLUE};
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-    }}
-    .stInfo, .stSuccess {{
-        border-left: 4px solid {SKY_BLUE};
-    }}
-</style>
-""", unsafe_allow_html=True)
+# Load global stylesheet
+with open("styles.css", encoding="utf-8") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# MOBILE RESPONSIVENESS (Week 4 requirement)
-# ---------------------------------------------------------------------------
-st.markdown("""
-<style>
-@media (max-width: 640px) {
-    [data-testid="stHorizontalBlock"] { flex-direction: column !important; }
-    [data-testid="stMetricValue"] { font-size: 1.3rem !important; }
-    .block-container { padding: 1rem 0.8rem !important; }
-    h1 { font-size: 1.5rem !important; }
-    h2, h3 { font-size: 1.15rem !important; }
-}
-</style>
-""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
 # LANGUAGE TOGGLE (English / Urdu)
@@ -152,44 +134,6 @@ if "username" not in st.session_state:
 
 if st.session_state.username is None:
     st.title(t("login_title"))
-        # Login / signup form colors (light theme friendly)
-    st.markdown("""
-    <style>
-    /* Title + tab labels + field labels → black */
-    h1, [data-testid="stMarkdownContainer"] p,
-    [data-baseweb="tab"] button,
-    label, [data-testid="stWidgetLabel"] p {
-        color: #000000 !important;
-    }
-
-    /* Text boxes → light background, dark text + dark placeholder */
-    div[data-baseweb="input"] {
-        background-color: #E8F5E9 !important;
-        border: 1px solid #A5D6A7 !important;
-        border-radius: 8px !important;
-    }
-    div[data-baseweb="input"] input {
-        background-color: #E8F5E9 !important;
-        color: #1B5E20 !important;
-    }
-    div[data-baseweb="input"] input::placeholder {
-        color: #2E7D32 !important;
-        opacity: 1 !important;
-    }
-
-    /* Buttons → light green background; keep button text color unchanged */
-    div[data-testid="stFormSubmitButton"] button,
-    .stButton > button {
-        background-color: #A5D6A7 !important;
-        border: 1px solid #1B5E20 !important;
-        /* do NOT set color here — button font color stays same for both themes */
-    }
-    div[data-testid="stFormSubmitButton"] button:hover,
-    .stButton > button:hover {
-        background-color: #81C784 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
     tab_login, tab_signup = st.tabs([t("login_tab"), t("signup_tab")])
 

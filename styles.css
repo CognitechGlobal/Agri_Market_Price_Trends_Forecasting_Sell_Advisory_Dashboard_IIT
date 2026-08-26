@@ -1,0 +1,133 @@
+/* ==========================================================================
+   Agri Price Advisory — global styles
+   Colors: dark green #1B5E20 | sky blue #4FC3F7 | light green #A5D6A7
+   Theme variables (--bg, --text, etc.) are set from app.py based on light/dark.
+   ========================================================================== */
+
+/* ---------- Defaults (light) if app.py hasn't set variables yet ---------- */
+:root {
+  --bg: #F1F8E9;
+  --text: #1B5E20;
+  --card: #FFFFFF;
+  --input-bg: #E8F5E9;
+  --input-text: #1B5E20;
+  --placeholder: #2E7D32;
+  --btn-bg: #A5D6A7;
+  --btn-border: #1B5E20;
+  --btn-hover: #81C784;
+  --sidebar-bg: #1B5E20;
+  --sidebar-text: #E8F5E9;
+  --accent: #4FC3F7;
+  --heading: #1B5E20;
+  --alert-bg: #E8F5E9;
+  --alert-text: #1B5E20;
+  --dark-green: #1B5E20;
+  --sky-blue: #4FC3F7;
+  --light-green: #A5D6A7;
+}
+
+/* ---------- App shell ---------- */
+.stApp {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+/* ---------- Sidebar ---------- */
+[data-testid="stSidebar"] {
+  background-color: var(--sidebar-bg);
+}
+[data-testid="stSidebar"] * {
+  color: var(--sidebar-text) !important;
+}
+
+/* ---------- Headings & body text ---------- */
+h1, h2, h3, h4 {
+  color: var(--heading) !important;
+}
+
+.stMarkdown, .stText, p, label,
+[data-testid="stMarkdownContainer"],
+[data-testid="stWidgetLabel"] p,
+[data-testid="stCaptionContainer"],
+.stCaption {
+  color: var(--text) !important;
+}
+
+/* ---------- Info / tip boxes (e.g. "Try asking something like...") ---------- */
+div[data-testid="stAlert"] {
+  background-color: var(--alert-bg) !important;
+  border-left: 4px solid var(--sky-blue) !important;
+  color: var(--alert-text) !important;
+}
+div[data-testid="stAlert"] p,
+div[data-testid="stAlert"] li,
+div[data-testid="stAlert"] span {
+  color: var(--alert-text) !important;
+}
+
+/* ---------- Text inputs ---------- */
+div[data-baseweb="input"] {
+  background-color: var(--input-bg) !important;
+  border: 1px solid var(--light-green) !important;
+  border-radius: 8px !important;
+}
+div[data-baseweb="input"] input {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+}
+div[data-baseweb="input"] input::placeholder {
+  color: var(--placeholder) !important;
+  opacity: 1 !important;
+}
+
+/* ---------- Buttons (background only — do not force text color) ---------- */
+.stButton > button,
+div[data-testid="stFormSubmitButton"] button {
+  background-color: var(--btn-bg) !important;
+  border: 1px solid var(--btn-border) !important;
+}
+.stButton > button:hover,
+div[data-testid="stFormSubmitButton"] button:hover {
+  background-color: var(--btn-hover) !important;
+}
+
+/* ---------- Metrics / cards ---------- */
+div[data-testid="stMetric"] {
+  background-color: var(--card);
+  border-left: 4px solid var(--sky-blue);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 640px) {
+  [data-testid="stHorizontalBlock"] {
+    flex-direction: column !important;
+  }
+  [data-testid="stMetricValue"] {
+    font-size: 1.3rem !important;
+  }
+  .block-container {
+    padding: 1rem 0.8rem !important;
+  }
+  h1 {
+    font-size: 1.5rem !important;
+  }
+  h2, h3 {
+    font-size: 1.15rem !important;
+  }
+}
+
+/* ---------- Urdu (Nastaliq + RTL) — reference only; live rules stay in app.py ---------- */
+.urdu-mode .stMarkdown,
+.urdu-mode .stText,
+.urdu-mode p,
+.urdu-mode h1,
+.urdu-mode h2,
+.urdu-mode h3,
+.urdu-mode .stCaption,
+.urdu-mode .stChatMessage {
+  direction: rtl;
+  text-align: right;
+  line-height: 2;
+}
