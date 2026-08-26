@@ -28,9 +28,25 @@ SETUP:
 
 import os
 import requests
+import time
+import threading
 
 GEMINI_MODEL = "gemini-3.5-flash"  # current fast/cheap model as of mid-2026
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+
+# Free-tier friendly rate limit: max 1 request every 4 seconds
+_MIN_INTERVAL_SEC = 4.0
+_last_call_lock = threading.Lock()
+_last_call_time = 0.0
+
+def _wait_for_rate_limit():
+    global _last_call_time
+    with _last_call_lock:
+        now = time.time()
+        wait = _MIN_INTERVAL_SEC - (now - _last_call_time)
+        if wait > 0:
+            time.sleep(wait)
+        _last_call_time = time.time()
 
 
 def build_prompt(crop, region, current_price, chg_7d, chg_30d):
@@ -84,17 +100,12 @@ def resolve_api_key(api_key=None):
         return None
 
 
-def call_gemini_raw(prompt, api_key=None, timeout=10):
-    """
-    Generic Gemini call: sends any prompt, returns the raw text response.
-    Used both by get_ai_insight (price insights) and farmer_assistant.py
-    (translation) — one shared, tested code path for talking to Gemini,
-    rather than two separate implementations that could drift apart.
-    Returns None on any failure (no key, network error, bad response).
-    """
+def call_gemini_raw(prompt, api_key=None, timeout=15):
     api_key = resolve_api_key(api_key)
     if not api_key:
         return None
+
+    _wait_for_rate_limit()
 
     try:
         response = requests.post(
@@ -103,6 +114,16 @@ def call_gemini_raw(prompt, api_key=None, timeout=10):
             json={"contents": [{"parts": [{"text": prompt}]}]},
             timeout=timeout,
         )
+        if response.status_code == 429:
+            print("[ai_advisory] Rate limited (429). Waiting 20s then retrying once...")
+            time.sleep(20)
+            _wait_for_rate_limit()
+            response = requests.post(
+                GEMINI_URL,
+                headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+                json={"contents": [{"parts": [{"text": prompt}]}]},
+                timeout=timeout,
+            )
         response.raise_for_status()
         data = response.json()
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
