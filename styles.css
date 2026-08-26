@@ -5,9 +5,12 @@
    ========================================================================== */
 
 /* ---------- App shell ---------- */
-.stApp {
-  background-color: var(--bg);
-  color: var(--text);
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stHeader"],
+main {
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 /* ---------- Sidebar ---------- */
@@ -108,4 +111,42 @@ div[data-testid="stMetric"] {
   direction: rtl;
   text-align: right;
   line-height: 2;
+}
+
+/* ---------- Password visibility / eye button ---------- */
+div[data-baseweb="input"] button {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border: none !important;
+}
+
+div[data-baseweb="input"] button:hover {
+  background-color: var(--input-bg) !important;
+}
+
+div[data-baseweb="input"] button svg {
+  color: var(--input-text) !important;
+  fill: var(--input-text) !important;
+}
+
+/* ---------- Streamlit navigation ---------- */
+[data-testid="stSidebarNav"] {
+  background-color: var(--sidebar-bg) !important;
+}
+
+[data-testid="stSidebarNav"] * {
+  color: var(--sidebar-text) !important;
+}
+
+[data-testid="stSidebarNav"] a {
+  color: var(--sidebar-text) !important;
+}
+
+[data-testid="stSidebarNav"] a:hover {
+  background-color: var(--btn-hover) !important;
+}
+
+[data-testid="stSidebarNav"] a[aria-current="page"] {
+  background-color: var(--btn-bg) !important;
+  color: var(--sidebar-text) !important;
 }
