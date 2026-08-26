@@ -4,32 +4,13 @@
    Theme variables (--bg, --text, etc.) are set from app.py based on light/dark.
    ========================================================================== */
 
-/* ---------- Defaults (light) if app.py hasn't set variables yet ---------- */
-:root {
-  --bg: #F1F8E9;
-  --text: #1B5E20;
-  --card: #FFFFFF;
-  --input-bg: #E8F5E9;
-  --input-text: #1B5E20;
-  --placeholder: #2E7D32;
-  --btn-bg: #A5D6A7;
-  --btn-border: #1B5E20;
-  --btn-hover: #81C784;
-  --sidebar-bg: #1B5E20;
-  --sidebar-text: #E8F5E9;
-  --accent: #4FC3F7;
-  --heading: #1B5E20;
-  --alert-bg: #E8F5E9;
-  --alert-text: #1B5E20;
-  --dark-green: #1B5E20;
-  --sky-blue: #4FC3F7;
-  --light-green: #A5D6A7;
-}
-
 /* ---------- App shell ---------- */
-.stApp {
-  background-color: var(--bg);
-  color: var(--text);
+.stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stHeader"],
+main {
+  background-color: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 /* ---------- Sidebar ---------- */
@@ -130,4 +111,42 @@ div[data-testid="stMetric"] {
   direction: rtl;
   text-align: right;
   line-height: 2;
+}
+
+/* ---------- Password visibility / eye button ---------- */
+div[data-baseweb="input"] button {
+  background-color: var(--input-bg) !important;
+  color: var(--input-text) !important;
+  border: none !important;
+}
+
+div[data-baseweb="input"] button:hover {
+  background-color: var(--input-bg) !important;
+}
+
+div[data-baseweb="input"] button svg {
+  color: var(--input-text) !important;
+  fill: var(--input-text) !important;
+}
+
+/* ---------- Streamlit navigation ---------- */
+[data-testid="stSidebarNav"] {
+  background-color: var(--sidebar-bg) !important;
+}
+
+[data-testid="stSidebarNav"] * {
+  color: var(--sidebar-text) !important;
+}
+
+[data-testid="stSidebarNav"] a {
+  color: var(--sidebar-text) !important;
+}
+
+[data-testid="stSidebarNav"] a:hover {
+  background-color: var(--btn-hover) !important;
+}
+
+[data-testid="stSidebarNav"] a[aria-current="page"] {
+  background-color: var(--btn-bg) !important;
+  color: var(--sidebar-text) !important;
 }

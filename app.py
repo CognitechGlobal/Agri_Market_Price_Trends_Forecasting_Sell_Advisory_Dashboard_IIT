@@ -25,7 +25,16 @@ import dashboard_page
 import ask_page
 import account_page
 
-st.set_page_config(page_title="Agri Price Advisory", layout="wide", page_icon="🌾")
+st.set_page_config(
+    page_title="Agri Price Advisory",
+    layout="wide",
+    page_icon="🌾"
+)
+
+# Load global stylesheet FIRST
+with open("styles.css", encoding="utf-8") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
 
 # --- Theme toggle ---
 if "theme_mode" not in st.session_state:
@@ -39,9 +48,11 @@ theme_mode = st.sidebar.radio(
     index=0 if st.session_state.theme_mode == "light" else 1,
     key="theme_radio",
 )
+
 st.session_state.theme_mode = theme_mode
 
-# CSS variables for light vs dark (styles.css uses these)
+
+# --- Theme variables ---
 if theme_mode == "dark":
     st.markdown("""
     <style>
@@ -63,6 +74,7 @@ if theme_mode == "dark":
     }
     </style>
     """, unsafe_allow_html=True)
+
 else:
     st.markdown("""
     <style>
@@ -84,10 +96,6 @@ else:
     }
     </style>
     """, unsafe_allow_html=True)
-
-# Load global stylesheet
-with open("styles.css", encoding="utf-8") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
@@ -113,16 +121,34 @@ st.session_state.lang = lang_choice
 if st.session_state.lang == "ur":
     st.markdown("""
     <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <style>
-    html, body, [class*="st-"], .stMarkdown, .stText, p, h1, h2, h3, h4,
-    .stCaption, .stChatMessage, label, div, span, input, textarea, button {
-        font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Al Qalam Taj Nastaleeq", serif !important;
-    }
-    .stMarkdown, .stText, p, h1, h2, h3, .stCaption, .stChatMessage {
+
+    /* Urdu text only */
+    .urdu-text,
+    .urdu-text p,
+    .urdu-text h1,
+    .urdu-text h2,
+    .urdu-text h3,
+    .urdu-text h4 {
+        font-family: "Noto Nastaliq Urdu",
+                     "Jameel Noori Nastaleeq",
+                     "Al Qalam Taj Nastaleeq",
+                     serif !important;
+
         direction: rtl;
         text-align: right;
         line-height: 2;
     }
+
+    /* Keep normal Streamlit UI in its normal font */
+    input,
+    textarea,
+    button,
+    select {
+        font-family: inherit !important;
+    }
+
     </style>
     """, unsafe_allow_html=True)
 
