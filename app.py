@@ -152,6 +152,44 @@ if "username" not in st.session_state:
 
 if st.session_state.username is None:
     st.title(t("login_title"))
+        # Login / signup form colors (light theme friendly)
+    st.markdown("""
+    <style>
+    /* Title + tab labels + field labels → black */
+    h1, [data-testid="stMarkdownContainer"] p,
+    [data-baseweb="tab"] button,
+    label, [data-testid="stWidgetLabel"] p {
+        color: #000000 !important;
+    }
+
+    /* Text boxes → light background, dark text + dark placeholder */
+    div[data-baseweb="input"] {
+        background-color: #E8F5E9 !important;
+        border: 1px solid #A5D6A7 !important;
+        border-radius: 8px !important;
+    }
+    div[data-baseweb="input"] input {
+        background-color: #E8F5E9 !important;
+        color: #1B5E20 !important;
+    }
+    div[data-baseweb="input"] input::placeholder {
+        color: #2E7D32 !important;
+        opacity: 1 !important;
+    }
+
+    /* Buttons → light green background; keep button text color unchanged */
+    div[data-testid="stFormSubmitButton"] button,
+    .stButton > button {
+        background-color: #A5D6A7 !important;
+        border: 1px solid #1B5E20 !important;
+        /* do NOT set color here — button font color stays same for both themes */
+    }
+    div[data-testid="stFormSubmitButton"] button:hover,
+    .stButton > button:hover {
+        background-color: #81C784 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     tab_login, tab_signup = st.tabs([t("login_tab"), t("signup_tab")])
 
