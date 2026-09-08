@@ -25,78 +25,21 @@ import dashboard_page
 import ask_page
 import account_page
 
-st.set_page_config(
-    page_title="Agri Price Advisory",
-    layout="wide",
-    page_icon="🌾"
-)
+st.set_page_config(page_title="Agri Price Advisory", layout="wide", page_icon="🌾")
 
-# Load global stylesheet FIRST
-with open("styles.css", encoding="utf-8") as f:
-    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+# ---------------------------------------------------------------------------
+# GLOBAL THEME (orange + dark green) + mobile responsiveness
+# ---------------------------------------------------------------------------
+def _load_theme_css():
+    css_path = os.path.join(os.path.dirname(__file__), "styles.css")
+    try:
+        with open(css_path, "r", encoding="utf-8") as f:
+            css = f.read()
+    except FileNotFoundError:
+        css = ""
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
-
-# --- Theme toggle ---
-if "theme_mode" not in st.session_state:
-    st.session_state.theme_mode = "light"
-
-theme_mode = st.sidebar.radio(
-    "Theme",
-    options=["light", "dark"],
-    format_func=lambda x: "☀️ Light" if x == "light" else "🌙 Dark",
-    horizontal=True,
-    index=0 if st.session_state.theme_mode == "light" else 1,
-    key="theme_radio",
-)
-
-st.session_state.theme_mode = theme_mode
-
-
-# --- Theme variables ---
-if theme_mode == "dark":
-    st.markdown("""
-    <style>
-    :root {
-      --bg: #0D1F12;
-      --text: #E8F5E9;
-      --card: #1B3D24;
-      --input-bg: #1B3D24;
-      --input-text: #E8F5E9;
-      --placeholder: #A5D6A7;
-      --btn-bg: #1B5E20;
-      --btn-border: #A5D6A7;
-      --btn-hover: #2E7D32;
-      --sidebar-bg: #0A1810;
-      --sidebar-text: #E8F5E9;
-      --heading: #4FC3F7;
-      --alert-bg: #1B3D24;
-      --alert-text: #E8F5E9;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-else:
-    st.markdown("""
-    <style>
-    :root {
-      --bg: #F1F8E9;
-      --text: #1B5E20;
-      --card: #FFFFFF;
-      --input-bg: #E8F5E9;
-      --input-text: #1B5E20;
-      --placeholder: #2E7D32;
-      --btn-bg: #A5D6A7;
-      --btn-border: #1B5E20;
-      --btn-hover: #81C784;
-      --sidebar-bg: #1B5E20;
-      --sidebar-text: #E8F5E9;
-      --heading: #1B5E20;
-      --alert-bg: #E8F5E9;
-      --alert-text: #1B5E20;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
+_load_theme_css()
 
 # ---------------------------------------------------------------------------
 # LANGUAGE TOGGLE (English / Urdu)
@@ -121,34 +64,16 @@ st.session_state.lang = lang_choice
 if st.session_state.lang == "ur":
     st.markdown("""
     <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
-
     <style>
-
-    /* Urdu text only */
-    .urdu-text,
-    .urdu-text p,
-    .urdu-text h1,
-    .urdu-text h2,
-    .urdu-text h3,
-    .urdu-text h4 {
-        font-family: "Noto Nastaliq Urdu",
-                     "Jameel Noori Nastaleeq",
-                     "Al Qalam Taj Nastaleeq",
-                     serif !important;
-
+    html, body, [class*="st-"], .stMarkdown, .stText, p, h1, h2, h3, h4,
+    .stCaption, .stChatMessage, label, div, span, input, textarea, button {
+        font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Al Qalam Taj Nastaleeq", serif !important;
+    }
+    .stMarkdown, .stText, p, h1, h2, h3, .stCaption, .stChatMessage {
         direction: rtl;
         text-align: right;
         line-height: 2;
     }
-
-    /* Keep normal Streamlit UI in its normal font */
-    input,
-    textarea,
-    button,
-    select {
-        font-family: inherit !important;
-    }
-
     </style>
     """, unsafe_allow_html=True)
 
@@ -270,15 +195,18 @@ df_base = load_data()
 def _render_dashboard():
     dashboard_page.render(df_base, is_premium, st.session_state.username)
 
+
 def _render_ask():
     ask_page.render(df_base)
+
 
 def _render_account():
     account_page.render(st.session_state.username, is_premium)
 
-page_ask = st.Page(_render_ask, title=t("nav_ask"), default=True)
+
 page_dashboard = st.Page(_render_dashboard, title=t("nav_dashboard"))
+page_ask = st.Page(_render_ask, title=t("nav_ask"))
 page_account = st.Page(_render_account, title=t("nav_account"))
 
-pg = st.navigation([page_ask, page_dashboard, page_account])
+pg = st.navigation([page_dashboard, page_ask, page_account])
 pg.run()

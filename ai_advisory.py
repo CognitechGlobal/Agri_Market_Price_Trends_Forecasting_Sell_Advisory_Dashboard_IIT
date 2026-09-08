@@ -27,25 +27,33 @@ SETUP:
 """
 
 import os
-import requests
 import time
 import threading
+import requests
 
 GEMINI_MODEL = "gemini-3.5-flash"  # current fast/cheap model as of mid-2026
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
-# Free-tier friendly rate limit: max 1 request every 4 seconds
-_MIN_INTERVAL_SEC = 4.0
-_last_call_lock = threading.Lock()
+# ---------------------------------------------------------------------------
+# Simple rate limiter / queue
+# All Gemini calls go through this so they wait their turn instead of
+# hitting the API all at once (avoids 429 rate-limit errors + timeouts).
+# Adjust MIN_INTERVAL_SECONDS if you need slower/faster spacing.
+# ---------------------------------------------------------------------------
+_MIN_INTERVAL_SECONDS = 4.0          # wait at least this many seconds between calls
+_lock = threading.Lock()
 _last_call_time = 0.0
 
-def _wait_for_rate_limit():
+
+def _wait_for_slot():
+    """Blocks until enough time has passed since the last Gemini call."""
     global _last_call_time
-    with _last_call_lock:
+    with _lock:
         now = time.time()
-        wait = _MIN_INTERVAL_SEC - (now - _last_call_time)
-        if wait > 0:
-            time.sleep(wait)
+        elapsed = now - _last_call_time
+        if elapsed < _MIN_INTERVAL_SECONDS:
+            sleep_for = _MIN_INTERVAL_SECONDS - elapsed
+            time.sleep(sleep_for)
         _last_call_time = time.time()
 
 
@@ -100,12 +108,23 @@ def resolve_api_key(api_key=None):
         return None
 
 
-def call_gemini_raw(prompt, api_key=None, timeout=15):
+def call_gemini_raw(prompt, api_key=None, timeout=25):
+    """
+    Generic Gemini call: sends any prompt, returns the raw text response.
+    Used both by get_ai_insight (price insights) and farmer_assistant.py
+    (translation) — one shared, tested code path for talking to Gemini,
+    rather than two separate implementations that could drift apart.
+    Returns None on any failure (no key, network error, bad response).
+
+    All calls are rate-limited (queued) via _wait_for_slot() so multiple
+    requests don't hit the API at the same time.
+    """
     api_key = resolve_api_key(api_key)
     if not api_key:
         return None
 
-    _wait_for_rate_limit()
+    # Wait in queue until it's safe to call (prevents rate-limit errors)
+    _wait_for_slot()
 
     try:
         response = requests.post(
@@ -114,16 +133,6 @@ def call_gemini_raw(prompt, api_key=None, timeout=15):
             json={"contents": [{"parts": [{"text": prompt}]}]},
             timeout=timeout,
         )
-        if response.status_code == 429:
-            print("[ai_advisory] Rate limited (429). Waiting 20s then retrying once...")
-            time.sleep(20)
-            _wait_for_rate_limit()
-            response = requests.post(
-                GEMINI_URL,
-                headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
-                json={"contents": [{"parts": [{"text": prompt}]}]},
-                timeout=timeout,
-            )
         response.raise_for_status()
         data = response.json()
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -132,7 +141,7 @@ def call_gemini_raw(prompt, api_key=None, timeout=15):
         return None
 
 
-def get_ai_insight(crop, region, current_price, chg_7d, chg_30d, api_key=None, timeout=10):
+def get_ai_insight(crop, region, current_price, chg_7d, chg_30d, api_key=None, timeout=25):
     """
     Calls the Gemini API and returns a one-sentence insight string.
     Returns None if it fails for any reason (no key, network error, bad
