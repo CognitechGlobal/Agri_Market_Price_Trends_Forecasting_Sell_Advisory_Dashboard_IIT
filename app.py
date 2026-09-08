@@ -21,6 +21,7 @@ import streamlit as st
 import pandas as pd
 from auth import create_user, authenticate, get_user_tier, set_user_tier
 from translations import t
+from theme import get_theme
 import dashboard_page
 import ask_page
 import account_page
@@ -65,35 +66,44 @@ def _load_theme_css():
     except FileNotFoundError:
         css = ""
 
-    # Override CSS variables for dark mode (still orange + dark green)
-    if st.session_state.theme == "dark":
-        dark_vars = """
-        :root {
-          --bg: #0D1F12;
-          --text: #E8F5E9;
-          --card: #1B3A24;
-          --input-bg: #1B3A24;
-          --input-text: #E8F5E9;
-          --placeholder: #A5D6A7;
-          --btn-bg: #EF6C00;
-          --btn-border: #FF9800;
-          --btn-hover: #FF9800;
-          --sidebar-bg: #06140A;
-          --sidebar-text: #E8F5E9;
-          --accent: #FF9800;
-          --heading: #FFB74D;
-          --alert-bg: #1B3A24;
-          --alert-text: #E8F5E9;
-          --dark-green: #A5D6A7;
-          --orange: #FF9800;
-          --light-orange: #FFB74D;
-          --sky-blue: #FF9800;
-          --light-green: #FFB74D;
-        }
-        """
-        css = dark_vars + css
+    # Build a :root override from theme.py for whichever theme is active
+    # (light or dark) and append it AFTER styles.css's own :root block.
+    #
+    # FIX: this used to only build an override for dark mode and PREPEND it
+    # before styles.css's content ("dark_vars + css"). In CSS, when two rules
+    # target the same selector with the same specificity, the one that
+    # appears LATER in the stylesheet wins — so styles.css's own light-mode
+    # :root block (declared after the prepended dark_vars) always won the
+    # cascade, and dark mode's colors never fully applied. Generating the
+    # override for BOTH themes here and appending it (not prepending) makes
+    # sure the active theme's values always take precedence, for either mode.
+    th = get_theme(st.session_state.theme)
+    theme_vars = f"""
+    :root {{
+      --bg: {th['bg']};
+      --text: {th['text']};
+      --card: {th['card']};
+      --input-bg: {th['input_bg']};
+      --input-text: {th['input_text']};
+      --placeholder: {th['placeholder']};
+      --btn-bg: {th['btn_bg']};
+      --btn-border: {th['btn_border']};
+      --btn-hover: {th['btn_hover']};
+      --sidebar-bg: {th['sidebar_bg']};
+      --sidebar-text: {th['sidebar_text']};
+      --accent: {th['accent']};
+      --heading: {th['heading']};
+      --alert-bg: {th['alert_bg']};
+      --alert-text: {th['alert_text']};
+      --dark-green: {th['dark_green']};
+      --orange: {th['orange']};
+      --light-orange: {th['light_orange']};
+      --sky-blue: {th['sky_blue']};
+      --light-green: {th['light_green']};
+    }}
+    """
 
-    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    st.markdown(f"<style>{css}{theme_vars}</style>", unsafe_allow_html=True)
 
 _load_theme_css()
 
@@ -231,7 +241,7 @@ df_base = load_data()
 # lambdas here would give every page the same name ("<lambda>"), causing a
 # "URL pathnames must be unique" crash. Named wrapper functions avoid that.
 def _render_dashboard():
-    dashboard_page.render(df_base, is_premium, st.session_state.username)
+    dashboard_page.render(df_base, is_premium, st.session_state.username, st.session_state.theme)
 
 
 def _render_ask():
