@@ -1,16 +1,37 @@
 /* ==========================================================================
    Agri Price Advisory — global styles
-   Colors: dark green #1B5E20 | sky blue #4FC3F7 | light green #A5D6A7
+   Colors: dark green #1B5E20 | orange #EF6C00 | light orange #FFB74D
    Theme variables (--bg, --text, etc.) are set from app.py based on light/dark.
    ========================================================================== */
 
+/* ---------- Defaults (light) if app.py hasn't set variables yet ---------- */
+:root {
+  --bg: #FFF8E7;
+  --text: #1B5E20;
+  --card: #FFFFFF;
+  --input-bg: #FFF3E0;
+  --input-text: #1B5E20;
+  --placeholder: #558B2F;
+  --btn-bg: #EF6C00;
+  --btn-border: #E65100;
+  --btn-hover: #F57C00;
+  --sidebar-bg: #1B5E20;
+  --sidebar-text: #FFF8E7;
+  --accent: #EF6C00;
+  --heading: #1B5E20;
+  --alert-bg: #FFF3E0;
+  --alert-text: #1B5E20;
+  --dark-green: #1B5E20;
+  --orange: #EF6C00;
+  --light-orange: #FFB74D;
+  --sky-blue: #EF6C00;       /* kept name for compatibility; now orange */
+  --light-green: #FFB74D;    /* kept name for compatibility; now light orange */
+}
+
 /* ---------- App shell ---------- */
-.stApp,
-[data-testid="stAppViewContainer"],
-[data-testid="stHeader"],
-main {
-  background-color: var(--bg) !important;
-  color: var(--text) !important;
+.stApp {
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 /* ---------- Sidebar ---------- */
@@ -34,10 +55,10 @@ h1, h2, h3, h4 {
   color: var(--text) !important;
 }
 
-/* ---------- Info / tip boxes (e.g. "Try asking something like...") ---------- */
+/* ---------- Info / tip boxes ---------- */
 div[data-testid="stAlert"] {
   background-color: var(--alert-bg) !important;
-  border-left: 4px solid var(--sky-blue) !important;
+  border-left: 4px solid var(--orange) !important;
   color: var(--alert-text) !important;
 }
 div[data-testid="stAlert"] p,
@@ -49,7 +70,7 @@ div[data-testid="stAlert"] span {
 /* ---------- Text inputs ---------- */
 div[data-baseweb="input"] {
   background-color: var(--input-bg) !important;
-  border: 1px solid var(--light-green) !important;
+  border: 1px solid var(--light-orange) !important;
   border-radius: 8px !important;
 }
 div[data-baseweb="input"] input {
@@ -61,23 +82,40 @@ div[data-baseweb="input"] input::placeholder {
   opacity: 1 !important;
 }
 
-/* ---------- Buttons (background only — do not force text color) ---------- */
+/* ---------- Buttons ---------- */
 .stButton > button,
 div[data-testid="stFormSubmitButton"] button {
   background-color: var(--btn-bg) !important;
   border: 1px solid var(--btn-border) !important;
+  color: #FFFFFF !important;
 }
 .stButton > button:hover,
 div[data-testid="stFormSubmitButton"] button:hover {
   background-color: var(--btn-hover) !important;
+  color: #FFFFFF !important;
 }
 
 /* ---------- Metrics / cards ---------- */
 div[data-testid="stMetric"] {
   background-color: var(--card);
-  border-left: 4px solid var(--sky-blue);
+  border-left: 4px solid var(--orange);
   padding: 0.5rem 1rem;
   border-radius: 8px;
+}
+
+/* ---------- Selectboxes / dropdowns ---------- */
+div[data-baseweb="select"] > div {
+  background-color: var(--input-bg) !important;
+  border-color: var(--light-orange) !important;
+}
+
+/* ---------- Tabs ---------- */
+button[data-baseweb="tab"] {
+  color: var(--dark-green) !important;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+  color: var(--orange) !important;
+  border-bottom-color: var(--orange) !important;
 }
 
 /* ---------- Mobile ---------- */
@@ -111,42 +149,4 @@ div[data-testid="stMetric"] {
   direction: rtl;
   text-align: right;
   line-height: 2;
-}
-
-/* ---------- Password visibility / eye button ---------- */
-div[data-baseweb="input"] button {
-  background-color: var(--input-bg) !important;
-  color: var(--input-text) !important;
-  border: none !important;
-}
-
-div[data-baseweb="input"] button:hover {
-  background-color: var(--input-bg) !important;
-}
-
-div[data-baseweb="input"] button svg {
-  color: var(--input-text) !important;
-  fill: var(--input-text) !important;
-}
-
-/* ---------- Streamlit navigation ---------- */
-[data-testid="stSidebarNav"] {
-  background-color: var(--sidebar-bg) !important;
-}
-
-[data-testid="stSidebarNav"] * {
-  color: var(--sidebar-text) !important;
-}
-
-[data-testid="stSidebarNav"] a {
-  color: var(--sidebar-text) !important;
-}
-
-[data-testid="stSidebarNav"] a:hover {
-  background-color: var(--btn-hover) !important;
-}
-
-[data-testid="stSidebarNav"] a[aria-current="page"] {
-  background-color: var(--btn-bg) !important;
-  color: var(--sidebar-text) !important;
 }
