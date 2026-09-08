@@ -19,8 +19,37 @@ from ai_advisory import get_ai_insight
 from auth import save_dashboard, get_saved_dashboards, delete_saved_dashboard
 from price_utils import find_valid_region, get_crop_stats, get_forecast, rule_based_advice
 from translations import t
+from theme import get_theme
 
 FREE_TIER_LOOKBACK_DAYS = 30
+
+
+def _hex_to_rgba(hex_color, alpha):
+    """'#AABBCC' -> 'rgba(170,187,204,0.15)' — used for the forecast
+    confidence band fill, so its color/opacity tracks the theme's palette
+    instead of a hardcoded purple that only worked on a white background."""
+    hex_color = hex_color.lstrip("#")
+    r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def _themed_layout(fig, th, **extra_layout):
+    """
+    Applies the active theme's colors to a Plotly figure: transparent-into-page
+    paper background, a slightly-lighter plotting surface, theme-matched font
+    and gridline colors. Used by every chart on this page so switching themes
+    actually re-colors the charts too, not just the surrounding Streamlit UI.
+    """
+    fig.update_layout(
+        paper_bgcolor=th["paper_bg"],
+        plot_bgcolor=th["plot_bg"],
+        font=dict(color=th["text"]),
+        legend=dict(bgcolor="rgba(0,0,0,0)"),
+        xaxis=dict(gridcolor=th["grid"], zerolinecolor=th["grid"]),
+        yaxis=dict(gridcolor=th["grid"], zerolinecolor=th["grid"]),
+        **extra_layout,
+    )
+    return fig
 
 
 def build_pdf_report(crop, region, latest_price, chg_7d, chg_30d, advice, ai_insight):
@@ -65,7 +94,9 @@ def build_pdf_report(crop, region, latest_price, chg_7d, chg_30d, advice, ai_ins
     return bytes(pdf.output())
 
 
-def render(df_base, is_premium, username):
+def render(df_base, is_premium, username, theme="light"):
+    th = get_theme(theme)
+
     # --- Data ingestion (Week 2): CSV upload + manual entry ---
     if "extra_data" not in st.session_state:
         st.session_state.extra_data = pd.DataFrame(columns=["region", "date", "crop", "price_pkr_per_40kg"])
@@ -241,7 +272,7 @@ def render(df_base, is_premium, username):
 
     # --- Trend chart ---
     st.subheader(f"{crop} {t('price_trend')}")
-    DISTINCT_COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
+    DISTINCT_COLORS = th["palette"]
     fig = go.Figure()
     flat_regions = []
     for i, r in enumerate(regions):
@@ -258,6 +289,7 @@ def render(df_base, is_premium, username):
                 flat_regions.append(r)
         fig.add_trace(go.Scatter(x=r_df["date"], y=r_df["price_pkr_per_40kg"], mode="lines", name=label, line=dict(color=color, width=2.5)))
     fig.update_layout(yaxis_title="PKR per 40kg", xaxis_title="Date", hovermode="x unified", height=420)
+    _themed_layout(fig, th)
     st.plotly_chart(fig, width="stretch")
     st.caption("Each city keeps its own color. The legend shows ▲/▼ and % change over the selected date range.")
     if flat_regions:
@@ -266,8 +298,9 @@ def render(df_base, is_premium, username):
     # --- Mandi comparison ---
     st.subheader(f"Current {crop} price by mandi")
     latest_by_region = df[df["crop"] == crop].sort_values("date").groupby("region").tail(1).sort_values("price_pkr_per_40kg")
-    fig2 = go.Figure(go.Bar(x=latest_by_region["region"], y=latest_by_region["price_pkr_per_40kg"]))
+    fig2 = go.Figure(go.Bar(x=latest_by_region["region"], y=latest_by_region["price_pkr_per_40kg"], marker_color=th["accent"]))
     fig2.update_layout(yaxis_title="PKR per 40kg", height=350)
+    _themed_layout(fig2, th)
     st.plotly_chart(fig2, width="stretch")
 
     # --- Forecast (using shared price_utils logic) ---
@@ -285,14 +318,17 @@ def render(df_base, is_premium, username):
         lr_upper = forecast["prices"] + band_width
         lr_lower = forecast["prices"] - band_width
 
+        actual_color, ma_color, lr_color = th["palette"][0], th["accent"], th["palette"][2]
+
         fig3 = go.Figure()
-        fig3.add_trace(go.Scatter(x=hist["date"], y=hist["price_pkr_per_40kg"], name="Actual price", mode="lines"))
-        fig3.add_trace(go.Scatter(x=hist["date"], y=hist["ma7"], name="7-day MA", mode="lines", line=dict(dash="dot")))
-        fig3.add_trace(go.Scatter(x=future_dates, y=future_prices, name="Forecast (moving avg)", mode="lines", line=dict(dash="dash", color="orange")))
-        fig3.add_trace(go.Scatter(x=forecast["dates"], y=forecast["prices"], name="Forecast (linear regression)", mode="lines", line=dict(dash="dash", color="purple")))
+        fig3.add_trace(go.Scatter(x=hist["date"], y=hist["price_pkr_per_40kg"], name="Actual price", mode="lines", line=dict(color=actual_color)))
+        fig3.add_trace(go.Scatter(x=hist["date"], y=hist["ma7"], name="7-day MA", mode="lines", line=dict(dash="dot", color=actual_color)))
+        fig3.add_trace(go.Scatter(x=future_dates, y=future_prices, name="Forecast (moving avg)", mode="lines", line=dict(dash="dash", color=ma_color)))
+        fig3.add_trace(go.Scatter(x=forecast["dates"], y=forecast["prices"], name="Forecast (linear regression)", mode="lines", line=dict(dash="dash", color=lr_color)))
         fig3.add_trace(go.Scatter(x=forecast["dates"], y=lr_upper, mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip"))
-        fig3.add_trace(go.Scatter(x=forecast["dates"], y=lr_lower, mode="lines", line=dict(width=0), fill="tonexty", fillcolor="rgba(128,0,128,0.15)", name="Confidence band", hoverinfo="skip"))
+        fig3.add_trace(go.Scatter(x=forecast["dates"], y=lr_lower, mode="lines", line=dict(width=0), fill="tonexty", fillcolor=_hex_to_rgba(lr_color, 0.18), name="Confidence band", hoverinfo="skip"))
         fig3.update_layout(yaxis_title="PKR per 40kg", height=400)
+        _themed_layout(fig3, th)
         st.plotly_chart(fig3, width="stretch")
         st.caption("Two forecasting methods shown for comparison. The shaded band widens further out, reflecting more uncertainty.")
 
