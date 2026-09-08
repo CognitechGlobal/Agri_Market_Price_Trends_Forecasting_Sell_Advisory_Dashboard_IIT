@@ -58,6 +58,9 @@ TRANSLATIONS = {
     },
 
     "language_label": {"en": "Language / زبان", "ur": "Language / زبان"},
+    "theme_label": {"en": "Theme", "ur": "تھیم"},
+    "theme_light": {"en": "Light", "ur": "روشن"},
+    "theme_dark": {"en": "Dark", "ur": "تاریک"},
 
     # Account page
     "account_tier": {"en": "Tier", "ur": "درجہ"},

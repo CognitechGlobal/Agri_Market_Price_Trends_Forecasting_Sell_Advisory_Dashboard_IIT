@@ -28,27 +28,22 @@ import account_page
 st.set_page_config(page_title="Agri Price Advisory", layout="wide", page_icon="🌾")
 
 # ---------------------------------------------------------------------------
-# GLOBAL THEME (orange + dark green) + mobile responsiveness
+# THEME + LANGUAGE TOGGLES (before auth so login screen is themed too)
 # ---------------------------------------------------------------------------
-def _load_theme_css():
-    css_path = os.path.join(os.path.dirname(__file__), "styles.css")
-    try:
-        with open(css_path, "r", encoding="utf-8") as f:
-            css = f.read()
-    except FileNotFoundError:
-        css = ""
-    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
-
-_load_theme_css()
-
-# ---------------------------------------------------------------------------
-# LANGUAGE TOGGLE (English / Urdu)
-# ---------------------------------------------------------------------------
-# Set BEFORE the auth gate so a farmer can switch to Urdu before even
-# logging in — the login screen itself should be readable in either
-# language, not just the dashboard after login.
+if "theme" not in st.session_state:
+    st.session_state.theme = "light"
 if "lang" not in st.session_state:
     st.session_state.lang = "en"
+
+theme_choice = st.sidebar.radio(
+    t("theme_label"),
+    options=["light", "dark"],
+    format_func=lambda x: t("theme_light") if x == "light" else t("theme_dark"),
+    horizontal=True,
+    index=0 if st.session_state.theme == "light" else 1,
+    key="theme_radio",
+)
+st.session_state.theme = theme_choice
 
 lang_choice = st.sidebar.radio(
     t("language_label"), options=["en", "ur"],
@@ -58,6 +53,49 @@ lang_choice = st.sidebar.radio(
     key="lang_radio",
 )
 st.session_state.lang = lang_choice
+
+# ---------------------------------------------------------------------------
+# GLOBAL THEME CSS (orange + dark green) — light & dark variants
+# ---------------------------------------------------------------------------
+def _load_theme_css():
+    css_path = os.path.join(os.path.dirname(__file__), "styles.css")
+    try:
+        with open(css_path, "r", encoding="utf-8") as f:
+            css = f.read()
+    except FileNotFoundError:
+        css = ""
+
+    # Override CSS variables for dark mode (still orange + dark green)
+    if st.session_state.theme == "dark":
+        dark_vars = """
+        :root {
+          --bg: #0D1F12;
+          --text: #E8F5E9;
+          --card: #1B3A24;
+          --input-bg: #1B3A24;
+          --input-text: #E8F5E9;
+          --placeholder: #A5D6A7;
+          --btn-bg: #EF6C00;
+          --btn-border: #FF9800;
+          --btn-hover: #FF9800;
+          --sidebar-bg: #06140A;
+          --sidebar-text: #E8F5E9;
+          --accent: #FF9800;
+          --heading: #FFB74D;
+          --alert-bg: #1B3A24;
+          --alert-text: #E8F5E9;
+          --dark-green: #A5D6A7;
+          --orange: #FF9800;
+          --light-orange: #FFB74D;
+          --sky-blue: #FF9800;
+          --light-green: #FFB74D;
+        }
+        """
+        css = dark_vars + css
+
+    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
+_load_theme_css()
 
 # Urdu is a right-to-left script — use a standard Nastaliq font and flip
 # text alignment so it reads naturally instead of left-aligned Latin font.
