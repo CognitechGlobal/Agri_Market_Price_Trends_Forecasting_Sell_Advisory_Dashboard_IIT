@@ -290,7 +290,7 @@ def render(df_base, is_premium, username, theme="light"):
         fig.add_trace(go.Scatter(x=r_df["date"], y=r_df["price_pkr_per_40kg"], mode="lines", name=label, line=dict(color=color, width=2.5)))
     fig.update_layout(yaxis_title="PKR per 40kg", xaxis_title="Date", hovermode="x unified", height=420)
     _themed_layout(fig, th)
-    st.plotly_chart(fig, width="stretch")
+    st.plotly_chart(fig, width="stretch", theme=None)
     st.caption("Each city keeps its own color. The legend shows ▲/▼ and % change over the selected date range.")
     if flat_regions:
         st.warning(f"⚠️ Price for **{', '.join(flat_regions)}** shows no change across this date range — a real data characteristic, not a display error.")
@@ -301,7 +301,7 @@ def render(df_base, is_premium, username, theme="light"):
     fig2 = go.Figure(go.Bar(x=latest_by_region["region"], y=latest_by_region["price_pkr_per_40kg"], marker_color=th["accent"]))
     fig2.update_layout(yaxis_title="PKR per 40kg", height=350)
     _themed_layout(fig2, th)
-    st.plotly_chart(fig2, width="stretch")
+    st.plotly_chart(fig2, width="stretch", theme=None)
 
     # --- Forecast (using shared price_utils logic) ---
     st.subheader("Simple forecast (7-day moving average + linear regression)")
@@ -329,7 +329,7 @@ def render(df_base, is_premium, username, theme="light"):
         fig3.add_trace(go.Scatter(x=forecast["dates"], y=lr_lower, mode="lines", line=dict(width=0), fill="tonexty", fillcolor=_hex_to_rgba(lr_color, 0.18), name="Confidence band", hoverinfo="skip"))
         fig3.update_layout(yaxis_title="PKR per 40kg", height=400)
         _themed_layout(fig3, th)
-        st.plotly_chart(fig3, width="stretch")
+        st.plotly_chart(fig3, width="stretch", theme=None)
         st.caption("Two forecasting methods shown for comparison. The shaded band widens further out, reflecting more uncertainty.")
 
     # --- Advisory ---

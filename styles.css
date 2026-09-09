@@ -83,14 +83,21 @@ div[data-baseweb="input"] input::placeholder {
 }
 
 /* ---------- Buttons ---------- */
+/* Regular buttons, form-submit buttons, AND download buttons — Streamlit
+   renders download buttons under a different test id (stDownloadButton),
+   so without this line they fall back to Streamlit's own default button
+   style instead of the app's theme, which is what made the CSV/PDF
+   download buttons look unstyled in both light and dark mode. */
 .stButton > button,
-div[data-testid="stFormSubmitButton"] button {
+div[data-testid="stFormSubmitButton"] button,
+div[data-testid="stDownloadButton"] button {
   background-color: var(--btn-bg) !important;
   border: 1px solid var(--btn-border) !important;
   color: #FFFFFF !important;
 }
 .stButton > button:hover,
-div[data-testid="stFormSubmitButton"] button:hover {
+div[data-testid="stFormSubmitButton"] button:hover,
+div[data-testid="stDownloadButton"] button:hover {
   background-color: var(--btn-hover) !important;
   color: #FFFFFF !important;
 }
